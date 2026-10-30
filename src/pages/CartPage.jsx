@@ -1,0 +1,130 @@
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import DeliveryLocationMap from "../components/DeliveryLocationMap.jsx";
+import Footer from "../components/Footer.jsx";
+import Header from "../components/Header.jsx";
+import { useCart } from "../context/CartContext.jsx";
+import { isSupabaseConfigured, supabase } from "../lib/supabase.js";
+
+const deliveryAreas = ["Absor", "Satellite Town", "Overseas", "B&R Colony", "Turbat Bazar"];
+
+function formatPrice(value) {
+  return `Rs. ${Number(value || 0).toLocaleString("en-PK")}`;
+}
+
+export default function CartPage({ area, onAreaChange }) {
+  const { items, count, subtotal, changeQuantity, removeItem } = useCart();
+  const [customer, setCustomer] = useState({ name: "", phone: "", address: "", area: area || "" });
+  const [locationMode, setLocationMode] = useState("pin");
+  const [location, setLocation] = useState(null);
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
+
+  function updateCustomer(event) {
+    const { name, value } = event.target;
+    setCustomer((current) => ({ ...current, [name]: value }));
+    if (name === "area") onAreaChange(value);
+  }
+
+  async function placeOrder(event) {
+    event.preventDefault();
+    setError("");
+    if (!items.length) return setError("Add at least one item before placing your order.");
+    if (!isSupabaseConfigured) return setError("Connect Supabase first. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.");
+    if (locationMode === "pin" && !location) return setError("Drop a pin on the map or use your current location.");
+    if (locationMode === "link" && !googleMapsUrl.trim()) return setError("Paste a Google Maps link or choose a pin on the map.");
+
+    setSubmitting(true);
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke("create-order", {
+        body: {
+          customer: { name: customer.name, phone: customer.phone, address: customer.address },
+          deliveryLocation: locationMode === "pin" ? location : { googleMapsUrl: googleMapsUrl.trim() },
+          items: items.map((item) => ({ productId: item.productId, optionLabel: item.label, quantity: item.quantity })),
+        },
+      });
+      if (functionError) {
+        let details = functionError.message;
+        try {
+          const response = await functionError.context?.json();
+          details = response?.error || details;
+        } catch { /* Keep the SDK message if the response isn't JSON. */ }
+        throw new Error(details || "We couldn't send your order. Please try again.");
+      }
+      if (!data?.orderId) throw new Error(data?.error || "The order service did not return an order ID.");
+      navigate(`/track/${data.orderId}`);
+    } catch (submitError) {
+      setError(submitError.message || "We couldn't send your order. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <Header count={count} compactLogo />
+      <main className="page-wrapper cart-page">
+        <section className="cart-left">
+          <div className="cart-header"><Link to="/" className="back-btn" aria-label="Back to menu"><i className="ri-arrow-left-s-line" /></Link><h1>MY CART</h1></div>
+          <hr />
+          <div className="cart-items-container">
+            {items.length ? items.map((item) => (
+              <article className="cart-item" key={`${item.productId}:${item.label}`}>
+                <div className="cart-item-left">
+                  <img src={`/${item.image.replace(/^\.\//, "")}`} alt="" />
+                  <div><p className="cart-item-name">{item.name}{item.label && ` · ${item.label}`}</p><p className="cart-item-price">{formatPrice(item.price)} each</p></div>
+                </div>
+                <div className="cart-item-controls">
+                  <button className="delete-btn" onClick={() => removeItem(item)} aria-label={`Remove ${item.name}`}><i className="ri-delete-bin-line" /></button>
+                  <button className="add-btn" onClick={() => changeQuantity(item, -1)} aria-label={`Decrease ${item.name}`}>−</button>
+                  <span className="cart-item-qty">{item.quantity}</span>
+                  <button className="add-btn" onClick={() => changeQuantity(item, 1)} aria-label={`Increase ${item.name}`}>+</button>
+                </div>
+                <p className="cart-item-total">{formatPrice(item.price * item.quantity)}</p>
+              </article>
+            )) : (
+              <div className="empty-cart"><p>Your cart is empty. Find something delicious from the menu.</p><Link to="/"><button type="button">START YOUR ORDER</button></Link></div>
+            )}
+          </div>
+          <div className="you-may-like"><hr /><h2>Ready for something delicious?</h2><p>Our menu is made fresh in Turbat.</p><Link className="text-link" to="/">Browse the menu <i className="ri-arrow-right-line" /></Link></div>
+        </section>
+
+        <section className="cart-right">
+          <form onSubmit={placeOrder}>
+            <div className="order-details-box">
+              <h2>Delivery details</h2>
+              <div className="info-card"><i className="ri-store-2-line" /><div><p className="info-label">FROM</p><p className="info-value">KECH FOOD CENTER · Turbat</p></div></div>
+              <label className="checkout-field"><span>Your name</span><input name="name" value={customer.name} onChange={updateCustomer} placeholder="Enter your name" autoComplete="name" required minLength={2} maxLength={80} /></label>
+              <label className="checkout-field"><span>Phone number</span><input type="tel" name="phone" value={customer.phone} onChange={updateCustomer} placeholder="03xx xxxxxxx" autoComplete="tel" required maxLength={20} /></label>
+              <label className="checkout-field"><span>Delivery area</span><select name="area" value={customer.area} onChange={updateCustomer}><option value="">Select your area</option>{deliveryAreas.map((deliveryArea) => <option key={deliveryArea}>{deliveryArea}</option>)}</select></label>
+              <label className="checkout-field"><span>Full address</span><textarea name="address" value={customer.address} onChange={updateCustomer} placeholder="House, street, and nearby landmark" required minLength={5} maxLength={250} rows={3} /></label>
+
+              <fieldset className="location-choice">
+                <legend>Choose your delivery location</legend>
+                <label><input type="radio" name="location-mode" value="pin" checked={locationMode === "pin"} onChange={() => setLocationMode("pin")} /><span>Drop a pin</span></label>
+                <label><input type="radio" name="location-mode" value="link" checked={locationMode === "link"} onChange={() => setLocationMode("link")} /><span>Paste a Google Maps link</span></label>
+              </fieldset>
+
+              {locationMode === "pin" ? (
+                <DeliveryLocationMap location={location} onLocationChange={setLocation} />
+              ) : (
+                <label className="checkout-field maps-link-field"><span>Google Maps link</span><input type="url" value={googleMapsUrl} onChange={(event) => setGoogleMapsUrl(event.target.value)} placeholder="https://maps.app.goo.gl/..." required /></label>
+              )}
+
+              <div className="delivery-charge-note"><i className="ri-information-line" /><span>Delivery charge will be set by the rider based on distance.</span></div>
+              <div className="price-breakdown"><div className="price-row"><span>Subtotal</span><span>{formatPrice(subtotal)}</span></div></div>
+              {error && <p className="checkout-error" role="alert">{error}</p>}
+              <button type="submit" className="confirm-button" disabled={submitting || items.length === 0}>
+                {submitting ? "SENDING ORDER…" : `SEND ORDER · ${formatPrice(subtotal)}`}
+              </button>
+              <p className="checkout-note">You’ll confirm the final total after the rider sets the delivery charge.</p>
+            </div>
+          </form>
+        </section>
+      </main>
+      <Footer />
+    </>
+  );
+}

@@ -1,0 +1,5 @@
+[functions.telegram-webhook]
+verify_jwt = false
+
+[edge_runtime]
+policy = "per_worker"

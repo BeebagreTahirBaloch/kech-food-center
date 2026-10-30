@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kech Food Center Cart</title>
+    <link rel="icon" href="../images/bb4d6e33f181fa58432a39a27a107d66.png"> 
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous"/>
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.5.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="addtocart.css">
+</head>
+<body>
+
+<nav>
+    <div class="logo">
+        <a href="../index.html">
+            <img src="../images/kfc_turbat_logo edited.png" width="100px" alt="Logo">
+        </a>
+    </div>
+    <div class="nav-items">
+        <a href="#">MENU</a>
+        <a href="#">STORE</a>
+        <a href="#">GET THE APP</a>
+    </div>
+    <div class="nav-icons">
+        <div class="nav-icons-cart">
+            <a href="#"><i class="ri-shopping-cart-line"></i></a>
+            <span class="cart-count2">0</span>
+        </div>
+        <div><a href="#"><i class="ri-user-3-line"></i> <span>My Account</span></a></div>
+    </div>
+</nav>
+
+<div class="page-wrapper">
+
+    <div class="cart-left">
+        <div class="cart-header">
+            <a href="../index.html" class="back-btn"><i class="ri-arrow-left-s-line"></i></a>
+            <h2>MY CART</h2>
+        </div>
+        <hr>
+
+        <div class="cart-items-container">
+            <!-- <div class="cart-item">
+                <div class="cart-item-left">
+                    <img src="../images/malai tikka pizza.jpg" alt="Chicken Burger">
+                    <div>
+                        <p class="cart-item-name">Malai Tikka Pizza Large</p>
+                        <p class="cart-item-price">Rs. 1200</p>
+                    </div>
+                </div>
+                <div class="cart-item-controls">
+                    <button class="delete-btn"><i class="ri-delete-bin-line"></i></button>
+                    <span class="cart-item-qty">10</span>
+                    <button class="add-btn">+</button>
+                </div>
+                <p class="cart-item-total">RS<br>12000</p>
+            </div> -->
+        </div>
+
+        <div class="you-may-like">
+            <hr>
+            <h3>Hurry Up! Order Now🍴</h3>
+            <div class="suggestions-row"></div>
+        </div>
+    </div>
+
+    <div class="cart-right">
+        <div class="voucher-box">
+            <h4>Add a Voucher Code</h4>
+            <div class="voucher-input">
+                <input type="text" placeholder="Enter Voucher Code">
+                <button>Apply</button>
+            </div>
+        </div>
+
+        <div class="order-details-box">
+            <h4>Order Details</h4>
+            <div class="order-items-list"></div>
+            <div class="order-info-btn">
+                <div class="info-card">
+                    <i class="ri-store-2-line"></i>
+                    <div>
+                        <p class="info-label">FROM</p>
+                        <p class="info-value">KECH FOOD CENTER Turbat</p>
+                    </div>
+                </div>
+                <div class="info-card">
+                    <i class="ri-e-bike-2-fill"></i>
+                    <div>
+                        <p class="info-label">PUT YOUR ADDRESS</p>
+                        <p class="info-value" id="order-time"></p>
+                    </div>
+                </div>
+
+            </div>
+            <!-- price breakdown total and grand total -->
+                    <div class="price-breakdown">
+            <div class="price-row">
+                <span>Total</span>
+                <span class="breakdown-total">Rs. 0</span>
+            </div>
+            <div class="price-row">
+                <span>Delivery Charges</span>
+                <span class="breakdown-dilavery">Rs. 0</span>
+            </div>
+            <div class="price-row grand">
+                <span>Grand Total</span>
+                <span class="breakdown-grand">Rs. 0</span>
+            </div>
+            <!--  -->
+</div>
+            <textarea  class="input-address"  placeholder="Address and Instructions for Delivery Expert..."></textarea>
+            <input type="tel" class="input-address" placeholder="Enter Your Phone number" required maxlength="11">
+                           
+        </div>
+
+        <div class="confirm-bar">
+            <span id="confirm-summary"> <span class="confirm-summary-items" >0 ITEMS</span> | <span class="confirm-summary-Total-price">RS. 0</span></span>
+            <P></P>
+            <button class="confirm-button">CONFIRM ORDER</button>
+        </div>
+    </div>
+
+    
+</div>
+
+<footer class="footer">
+    <div class="footer-container">
+        <div class="copyright">KECH FOOD CENTER. All rights reserved</div>
+        <div class="powered-by">
+            <span>Powered By</span>
+            <a href="#">Beebagre Tahir Solutions</a>
+        </div>
+    </div>
+</footer>
+
+<div class="bottom-nav">
+    <a href="#" class="bottom-nav-items"><i class="fa-regular fa-circle-user"></i><span>My Account</span></a>
+    <a href="#" class="bottom-nav-items"><i class="fa-solid fa-store"></i><span>Store</span></a>
+    <a href="../index.html" class="bottom-nav-items"><i class="fa-solid fa-utensils"></i><span>Menu</span></a>
+    <a href="#" class="bottom-nav-items"><i class="ri-e-bike-2-fill"></i><span>Track Order</span></a>
+    <a href="#" class="bottom-nav-items">
+        <div style="position:relative;display:inline-block;">
+            <i class="ri-shopping-cart-line"></i>
+            <span class="cart-count1">0</span>
+        </div>
+        <span>My Cart</span>
+    </a>
+</div>
+
+<script src="addtocart.js"></script>
+</body>
+</html>
