@@ -1,0 +1,27 @@
+begin;
+
+create temporary table test_orders_to_delete
+on commit drop as
+select id from public.orders;
+
+delete from public.call_attempts
+where order_id in (select id from test_orders_to_delete);
+
+delete from public.order_events
+where order_id in (select id from test_orders_to_delete);
+
+delete from public.order_push_jobs
+where order_id in (select id from test_orders_to_delete);
+
+delete from public.order_cleanup_batches b
+where exists (
+  select 1
+  from jsonb_array_elements(b.snapshot) entry
+  where (entry->'order_data'->>'id')::uuid
+    in (select id from test_orders_to_delete)
+);
+
+delete from public.orders
+where id in (select id from test_orders_to_delete);
+
+commit;

@@ -1,0 +1,60 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('test.uid',true),'')::uuid $$;create table public.admins(user_id uuid primary key);create function public.is_admin() returns boolean language sql security definer set search_path='' as $$select exists(select 1 from public.admins where user_id=auth.uid())$$;create schema realtime;create table realtime.messages(topic text);create function realtime.topic() returns text language sql as $$select 'rider-orders'::text$$;create function realtime.send(jsonb,text,text,boolean) returns void language sql as $$select$$;grant usage on schema auth to authenticated,anon;grant select on admins to authenticated;`);
+await db.exec((await readFile('supabase/schema.sql','utf8')).split('-- Backend menu migration')[0].replace(/create extension[^;]+;/,''));
+for(const file of ['202610310001_order_tracking.sql','202610310002_admin_orders.sql','202610310003_free_delivery.sql','202611010001_delivery_estimate.sql','202611010002_rider_operations.sql','202611010003_rider_reports.sql','202611010004_rider_push.sql','202611010006_rider_cancel_after_accept.sql','202611010007_pending_order_cancellation.sql','202611020001_ordering_hours.sql','202611020002_stop_ordering.sql','202611030002_waiting_order_alerts.sql','202611040001_order_cleanup.sql'])await db.exec(await readFile('supabase/migrations/'+file,'utf8'));
+await db.exec(`create table menu_items(id uuid,name text,base_price int,is_available bool);create table item_sizes(id uuid,item_id uuid,label text,price int);create table categories(id uuid,name text);create table delivery_rates(id boolean,tiers jsonb);`);
+for(const file of ['202611070001_customer_history.sql','202611070002_customer_owner_alerts.sql']){const sql=await readFile('supabase/migrations/'+file,'utf8');await db.exec(sql);await db.exec(sql);}
+const admin='11111111-1111-4111-8111-111111111111',rider='22222222-2222-4222-8222-222222222222',other='33333333-3333-4333-8333-333333333333';
+await db.exec(`insert into auth.users values('${admin}'),('${rider}'),('${other}');insert into admins values('${admin}');insert into riders(user_id,name,phone) values('${rider}','Rider','03000000000');`);
+const rpc=async(s,args=[]) => (await db.query('select '+s+' as result',args)).rows[0].result;
+const as=async(id,role='authenticated')=>{await db.exec('reset role');await db.query("select set_config('test.uid',$1,false)",[id]);await db.exec('set role '+role);};
+
+const migration=await readFile('supabase/migrations/202611080001_multiple_rider_orders.sql','utf8');await db.exec(migration);await db.exec(migration);
+assert.equal((await db.query('select max_active_orders from delivery_settings')).rows[0].max_active_orders,3);
+await as(admin);await db.query('update delivery_settings set max_active_orders=2 where id');await db.exec('reset role');
+
+const newOrder=async(lat=26,lng=63)=>{await db.exec('reset role');return (await db.query("insert into orders(customer_name,phone,address,lat,lng,items,subtotal,distance_km,estimated_delivery_charge) values('Private test','03000000000','Test address',$1,$2,'[{}]',500,2,100) returning id",[lat,lng])).rows[0].id;};
+const state=async id=>{await db.exec('reset role');return (await db.query('select * from orders where id=$1',[id])).rows[0];};
+const batch=async(ids)=>(await rpc('accept_orders($1)',[ids])).status;
+await db.exec("insert into riders(user_id,name,phone) values('"+other+"','Second rider','03000000000');");
+const a=await newOrder(),b=await newOrder(26.001,63),c=await newOrder(26.002,63),far=await newOrder(26.1,63);
+await as(rider);await rpc('set_rider_online(true)');
+assert.equal(await batch([a,b]),'accepted');let dashboard=await rpc('rider_dashboard()');assert.equal(dashboard.activeOrders.length,2);assert.ok(dashboard.active);assert.equal(dashboard.maxActiveOrders,2);
+assert.equal(await rpc('accept_order($1)',[c]),'capacity_reached');
+assert.equal((await rpc('rider_availability()')).allBusy,true);
+await as(other);assert.equal(await batch([a,c]),'already_taken');assert.equal((await state(c)).rider_id,null);
+await as(rider);await rpc('set_quote($1,100,30)',[a]);await rpc('mark_out_for_delivery($1)',[a]);await rpc('mark_delivered($1)',[a]);
+dashboard=await rpc('rider_dashboard()');assert.equal(dashboard.activeOrders.length,1);assert.equal(dashboard.activeOrders[0].id,b);assert.equal(dashboard.activeOrders[0].status,'awaiting_charge');
+assert.equal((await rpc('rider_availability()')).allBusy,false);
+assert.equal(await rpc('accept_order($1)',[far]),'orders_too_far_apart');assert.equal(await rpc('accept_order($1)',[c]),'accepted');
+await as(other);assert.equal(await rpc('mark_delivered($1)',[b]),'Order already changed');assert.equal((await rpc('rider_dashboard()')).activeOrders.length,0);
+await as(rider);assert.equal(await rpc("rider_cancel_order($1,'other','Cannot deliver this stop')",[c]),'cancelled');assert.equal((await rpc('rider_dashboard()')).activeOrders[0].id,b);
+await rpc('set_quote($1,100,30)',[b]);await rpc('mark_out_for_delivery($1)',[b]);await rpc('mark_arrived($1)',[b]);
+const near=await newOrder();await as(rider);assert.equal(await rpc('accept_order($1)',[near]),'finish_arrived_order');
+await rpc('mark_delivered($1)',[b]);assert.equal(await batch([near,near]),'accepted');assert.equal((await rpc('rider_dashboard()')).activeOrders.length,1);
+const conflict=await newOrder(26.001,63);await as(other);assert.equal(await rpc('accept_order($1)',[conflict]),'accepted');
+await as(admin);assert.equal(await rpc("reassign_order($1,$2,'Another nearby rider')",[conflict,rider]),'reassigned');assert.equal((await state(conflict)).rider_id,rider);
+const spare=await newOrder();await as(other);await rpc('accept_order($1)',[spare]);await as(admin);assert.equal(await rpc("reassign_order($1,$2,'Capacity conflict')",[spare,rider]),'capacity_reached');assert.equal((await state(spare)).rider_id,other);
+await as(admin);await db.query('update delivery_settings set max_active_orders=3,nearby_order_km=1 where id');
+await as(rider);assert.equal(await rpc('accept_order($1)',[far]),'orders_too_far_apart');
+const third=await newOrder();await as(rider);assert.equal(await rpc('accept_order($1)',[third]),'accepted');
+await as(admin);await db.query('update delivery_settings set max_active_orders=1 where id');assert.ok((await db.query("select * from admin_activity where entity='rider_capacity' and actor_id=$1",[admin])).rows.length>=2);
+await as(rider);assert.equal((await rpc('rider_dashboard()')).activeOrders.length,3);
+const extra=await newOrder();await as(rider);assert.equal(await rpc('accept_order($1)',[extra]),'capacity_reached');
+await as(admin);await db.query('update delivery_settings set max_active_orders=3 where id');
+for(const id of [near,conflict,third,spare]){await as(admin);assert.equal(await rpc("release_order($1,'Test release')",[id]),'released');}
+const x=await newOrder(26,64),y=await newOrder(26.007,64),z=await newOrder(26.014,64);
+await as(rider);assert.equal(await batch([x,y,z]),'orders_too_far_apart');
+assert.equal((await state(x)).rider_id,null);assert.equal((await state(y)).rider_id,null);assert.equal((await state(z)).rider_id,null);
+await as(rider);assert.equal(await batch([]),'invalid_selection');assert.equal(await batch([null]),'invalid_selection');
+await as(admin);await db.query('update delivery_settings set max_active_orders=5 where id');
+const five=[];for(let i=0;i<5;i++)five.push(await newOrder(26,65));await as(rider);assert.equal(await batch(five),'accepted');assert.equal((await rpc('rider_dashboard()')).activeOrders.length,5);
+await assert.rejects(rpc('rider_batch_check($1,$2)',[rider,[x]]));
+await assert.rejects(db.query('update delivery_settings set max_active_orders=5 where id returning *').then(r=>{if(!r.rows.length)throw Error('denied');}));
+await db.exec('reset role');await db.query('update riders set active=false where user_id=$1',[other]);await as(other);assert.equal(await batch([x]),'not_authorized');
+await as('','anon');await assert.rejects(rpc('accept_orders($1)',[[x]]));await assert.rejects(rpc('rider_dashboard()'));await assert.rejects(db.query('select customer_name,phone from orders'));
+await db.close();console.log('PASS multiple assignments, all-or-nothing conflicts, capacity, pairwise proximity, arrival block, independent delivery/cancel, reassign, audit and role security');
+

@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+let stored=null;globalThis.sessionStorage={getItem:()=>stored,setItem:(_,v)=>{stored=v;},removeItem:()=>{stored=null;}};
+const load=()=>import('../src/lib/checkoutRequest.js?test='+Math.random());
+let mod=await load();const body={customer:{name:'Test name',phone:'03000000000',address:'Test street'},items:[{itemId:'fake',quantity:1}],deliveryCharge:100};
+const first=await mod.checkoutRequest(body);assert.equal(await mod.checkoutRequest(body),first);
+assert.ok(!stored.includes('Test name')&&!stored.includes('03000000000')&&!stored.includes('Test street'));
+mod=await load();assert.equal(await mod.checkoutRequest(body),first);
+mod.clearCheckoutRequest();assert.notEqual(await mod.checkoutRequest(body),first);
+const changed=await mod.checkoutRequest({...body,deliveryCharge:200});assert.notEqual(changed,first);
+globalThis.sessionStorage={getItem(){throw Error('blocked');},setItem(){throw Error('blocked');},removeItem(){throw Error('blocked');}};
+const memory=await load();const id=await memory.checkoutRequest(body);assert.equal(await memory.checkoutRequest(body),id);
+console.log('PASS checkout retries, reload, success reset, payload changes, no raw personal storage, blocked storage fallback');

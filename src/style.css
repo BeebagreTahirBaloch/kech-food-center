@@ -973,24 +973,18 @@ nav.site-nav .cart-count1 { right: -8px; top: -4px; }
 .menu-page .nav2 .items.active a { color: #f00; padding: 0; border-radius: 0; }
 .menu-page .nav2 a:focus-visible { outline: 2px solid #b21f1f; outline-offset: 4px; }
 .menu-page .nav3 { background: #505050; }
-.menu-page .hero-wrap { margin-top: calc(var(--menu-offset) + 11px); height: auto; min-height: 0; background: transparent; }
+.menu-page > main { padding-top: calc(var(--menu-offset) - 12px); display: flow-root; }
+.menu-page .hero-wrap { margin-top: 23px; height: auto; min-height: 0; background: transparent; }
 .menu-page .hero-wrap::after { display: none; }
 .menu-page .hero-img { height: auto; max-height: none; object-fit: contain; }
 .menu-page .menu-category > h2, .menu-page #menu { scroll-margin-top: var(--menu-offset); }
 @media (max-width: 520px) {
-  .menu-page nav.site-nav { height: 17.27vw; border-bottom: 0; padding: 0 10.55vw 0 5.28vw; }
-  .menu-page nav.site-nav .logo { width: 100%; justify-content: space-between; gap: 3.84vw; }
-  /* The square source contains whitespace above and below the logo. */
-  .menu-page .brand-mark img { width: 30.22vw; height: 12.95vw; object-fit: cover; }
-  .menu-page .delivery-dropdown { gap: 0; align-self: flex-start; margin-top: 1.68vw; }
-  .menu-page .delivering-to { font-size: 4.08vw; line-height: 6.24vw; color: #000; }
-  .menu-page #nav-dropdown { font-size: 3.6vw; line-height: 5.28vw; width: 32.62vw; max-width: none; padding: 0; color: #000; }
-  .menu-page .nav2 { top: 17.27vw; height: 11.03vw; gap: 12vw; padding: 0 5.52vw; }
+  .menu-page .nav2 { top: 60px; height: 11.03vw; gap: 12vw; padding: 0 5.52vw; }
   .menu-page .nav2 .items { padding: 0; }
   .menu-page .nav2 .items a { font-size: 5.28vw; line-height: 1.5; }
-  .menu-page .nav3 { top: 28.3vw; }
+  .menu-page .nav3 { top: calc(60px + 11.03vw); }
   .menu-page .nav3 h3 { font-size: 4.08vw; line-height: 6.24vw; padding: 2.99vw 8vw; letter-spacing: 0; }
-  .menu-page .hero-wrap { margin: calc(var(--menu-offset) - 12px + 5.52vw) 1.44vw 0 1.92vw; border-radius: 6vw; }
+  .menu-page .hero-wrap { margin: 5.52vw 1.44vw 0 1.92vw; border-radius: 6vw; }
   .menu-page .hero-img { height: 51.8vw; width: 100%; object-fit: fill; }
 }
 @media (prefers-reduced-motion: reduce) {

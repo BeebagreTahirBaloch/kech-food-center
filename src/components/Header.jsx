@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 
 export default function Header({ count, compactLogo = false }) {
   return (
@@ -12,7 +12,7 @@ export default function Header({ count, compactLogo = false }) {
         <div className="nav-items">
           <a href="/#menu">MENU</a>
           <a href="tel:03352053652">CALL</a>
-          <a href="/#contact">CONTACT</a>
+          <NavLink to="/orders">ORDERS</NavLink>
         </div>
         <div className="nav-icons">
           <div className="nav-icons-cart">
@@ -25,7 +25,7 @@ export default function Header({ count, compactLogo = false }) {
       <div className="bottom-nav">
         <a href="tel:03352053652" className="bottom-nav-items"><i className="fa-solid fa-phone" /><span>Call</span></a>
         <a href="/#menu" className="bottom-nav-items"><i className="fa-solid fa-utensils" /><span>Menu</span></a>
-        <a href="/#contact" className="bottom-nav-items"><i className="fa-solid fa-store" /><span>Contact</span></a>
+        <NavLink to="/orders" className="bottom-nav-items"><i className="fa-solid fa-receipt" /><span>Orders</span></NavLink>
         <Link to="/cart" className="bottom-nav-items">
           <span className="mobile-cart-icon"><i className="ri-shopping-cart-line" /><span className="cart-count2">{count}</span></span>
           <span>My Cart</span>

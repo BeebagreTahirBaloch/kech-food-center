@@ -1,0 +1,21 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+await db.exec(`create role anon;create role authenticated;create schema realtime;create table realtime.messages(topic text);alter table realtime.messages enable row level security;create function realtime.topic() returns text language sql as $$select 'admin-orders'::text$$;create function realtime.send(jsonb,text,text,boolean) returns void language sql as $$select$$;create function public.is_admin() returns boolean language sql as $$select current_setting('test.admin',true)='yes'$$;`);
+let schema=(await readFile(new URL('../supabase/schema.sql',import.meta.url),'utf8')).split('-- Backend menu migration')[0].replace(/create extension[^;]+;/,'');
+await db.exec(schema);
+await db.exec(await readFile(new URL('../supabase/migrations/202610310001_order_tracking.sql',import.meta.url),'utf8'));
+await db.exec(await readFile(new URL('../supabase/migrations/202610310002_admin_orders.sql',import.meta.url),'utf8'));
+// Rerunning the migration must safely replace its policies and trigger.
+await db.exec(await readFile(new URL('../supabase/migrations/202610310002_admin_orders.sql',import.meta.url),'utf8'));
+await db.exec(`insert into orders(customer_name,phone,address,lat,lng,items,subtotal,distance_km,status,delivery_charge,total) values('Owner test','123456789','Test address',1,1,'[{}]',500,1,'delivered',100,600),('Pending test','123456789','Test address',1,1,'[{}]',900,1,'pending',null,null);set role authenticated;`);
+await assert.rejects(db.query('select public.admin_orders_report()'),/Not authorized/);
+await assert.rejects(db.query('select phone from orders'));
+assert.equal((await db.query('select id from orders')).rows.length,0);
+await db.query("select set_config('test.admin','yes',false)");
+const report=(await db.query('select public.admin_orders_report() r')).rows[0].r;
+assert.equal(report.count,2);assert.equal(report.summary['Total sales'],600);assert.equal(report.summary['Delivery charges'],100);assert.equal(report.summary['Average order value'],600);
+assert.equal((await db.query("select public.admin_orders_report(null,null,'pending','',0) r")).rows[0].r.summary['Total sales'],0);
+await db.exec('reset role;set role anon');await assert.rejects(db.query('select public.admin_orders_report()'));await assert.rejects(db.query('select phone from orders'));
+await db.close();console.log('PASS: admin totals, status filtering, normal-customer and anonymous restrictions');

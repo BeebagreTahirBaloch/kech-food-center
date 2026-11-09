@@ -20,7 +20,7 @@ export default function ProductModal({ item, onClose, onAdd }) {
     <div className="popup-overlay" role="presentation" onClick={(event) => event.target === event.currentTarget && onClose()}>
       <div id="pop-up" role="dialog" aria-modal="true" aria-labelledby="product-modal-title">
         <button className="popup-close-btn" onClick={onClose} aria-label="Close">&times;</button>
-        <img className="popup-image" src={`/${item.image.replace(/^\.\//, "")}`} alt={item.name} />
+        <img className="popup-image" src={item.image} alt={item.name} />
         <h2 id="product-modal-title" className="popup-name">{item.name}</h2>
         <p className="popup-para">{item.desc}</p>
         {options.length > 0 ? (

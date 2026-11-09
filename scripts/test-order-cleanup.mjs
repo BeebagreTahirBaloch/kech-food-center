@@ -1,0 +1,75 @@
+import {PGlite} from '@electric-sql/pglite';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const db=new PGlite();
+await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('test.uid',true),'')::uuid $$;create table public.admins(user_id uuid primary key);create function public.is_admin() returns boolean language sql security definer set search_path='' as $$select exists(select 1 from public.admins where user_id=auth.uid())$$;create schema realtime;create table realtime.messages(topic text);create function realtime.topic() returns text language sql as $$select 'rider-orders'::text$$;create function realtime.send(jsonb,text,text,boolean) returns void language sql as $$select$$;grant usage on schema auth to authenticated,anon;grant select on admins to authenticated;`);
+await db.exec((await readFile('supabase/schema.sql','utf8')).split('-- Backend menu migration')[0].replace(/create extension[^;]+;/,''));
+for(const file of ['202610310001_order_tracking.sql','202610310002_admin_orders.sql','202610310003_free_delivery.sql','202611010001_delivery_estimate.sql','202611010002_rider_operations.sql','202611010003_rider_reports.sql','202611010004_rider_push.sql','202611010006_rider_cancel_after_accept.sql','202611010007_pending_order_cancellation.sql']) {
+ const sql=await readFile('supabase/migrations/'+file,'utf8');await db.exec(sql);if(file.startsWith('202611'))await db.exec(sql);
+}
+const admin='11111111-1111-4111-8111-111111111111',a='22222222-2222-4222-8222-222222222222',b='33333333-3333-4333-8333-333333333333';
+await db.exec(`insert into auth.users values('${admin}'),('${a}'),('${b}');insert into admins values('${admin}');insert into riders(user_id,name,phone) values('${a}','Rider A','123456789'),('${b}','Rider B','987654321');`);
+const order=async()=> (await db.query("insert into orders(customer_name,phone,address,lat,lng,items,subtotal,distance_km,estimated_delivery_charge) values('Private name','123456789','Private address',1,1,'[{}]',500,2,100) returning id")).rows[0].id;
+const one=await order(),two=await order();
+const as=async id=>{await db.exec('reset role');await db.query("select set_config('test.uid',$1,false)",[id]);await db.exec('set role authenticated');};
+const rpc=async(sql,args=[])=> (await db.query('select '+sql+' as result',args)).rows[0].result;
+await as(a);
+assert.equal(JSON.stringify(await rpc('rider_dashboard()')).includes('Private'),false);
+await assert.rejects(db.query('select phone from orders'));
+assert.equal(await rpc('accept_order($1)',[one]),'accepted');
+await db.exec('reset role');
+await assert.rejects(db.query("update orders set status='awaiting_charge',rider_id=$1 where id=$2",[a,two]),/unique/);
+await as(a);
+assert.equal(await rpc('accept_order($1)',[two]),'you_have_an_active_order');
+assert.equal((await rpc('rider_dashboard()')).active.customer_name,'Private name');
+await as(b);assert.equal(await rpc('accept_order($1)',[one]),'already_taken');assert.equal(await rpc('set_quote($1,150,30)',[one]),'Order already changed');
+await as(a);assert.equal(await rpc('set_quote($1,150,30)',[one]),'updated');assert.equal(await rpc('mark_out_for_delivery($1)',[one]),'updated');assert.equal(await rpc('mark_arrived($1)',[one]),'updated');
+assert.equal(await rpc("rider_cancel_order($1,'no_answer','')",[one]),'Call the customer first');await rpc('log_call_attempt($1)',[one]);assert.match(await rpc("rider_cancel_order($1,'no_answer','')",[one]),/Wait/);
+await db.exec('reset role');assert.equal(await rpc('customer_here($1)',[one]),'updated');assert.equal(await rpc('customer_here($1)',[one]),'Already recorded');
+await db.query("update orders set arrived_at=now()-interval '30 minutes',customer_here_at=now()-interval '11 minutes' where id=$1",[one]);
+await as(a);assert.equal(await rpc("rider_cancel_order($1,'no_answer','')",[one]),'cancelled');assert.equal(await rpc('accept_order($1)',[two]),'accepted');
+await as(admin);assert.equal(await rpc("release_order($1,'Customer asked to change rider')",[two]),'released');assert.equal(await rpc("reassign_order($1,$2,'Assign another rider')",[two,b]),'Order already changed');
+await as(b);assert.equal(await rpc('accept_order($1)',[two]),'accepted');await rpc('set_quote($1,200,30)',[two]);await rpc('mark_out_for_delivery($1)',[two]);await rpc('mark_delivered($1)',[two]);
+await as(admin);const report=await rpc('admin_orders_report_v2()');assert.equal(report.summary['Total sales'],700);assert.equal(report.riders.length,2);
+await as(a);await assert.rejects(rpc('admin_orders_report_v2()'));await assert.rejects(db.query("update orders set status='delivered'"));await assert.rejects(db.query("insert into call_attempts(order_id,rider_id,created_at) values($1,$2,now()-interval '1 hour')",[two,a]));
+await db.exec('reset role;set role anon');await assert.rejects(rpc('rider_dashboard()'));await assert.rejects(db.query('select * from riders'));await assert.rejects(rpc('customer_here($1)',[one]));
+await db.exec('reset role');
+await as(a);
+await rpc('save_push_subscription($1,$2,$3,$4)',['https://fcm.googleapis.com/fcm/send/test','a'.repeat(87),'b'.repeat(22),'test']);
+assert.equal((await db.query('select id from push_subscriptions')).rows.length,1);
+await assert.rejects(rpc('save_push_subscription($1,$2,$3,$4)',['https://localhost/private','a'.repeat(87),'b'.repeat(22),'test']));
+await as(b);assert.equal((await db.query('select id from push_subscriptions')).rows.length,0);
+await assert.rejects(rpc('save_push_subscription($1,$2,$3,$4)',['https://fcm.googleapis.com/fcm/send/test','a'.repeat(87),'b'.repeat(22),'test']));
+await as('55555555-5555-4555-8555-555555555555');await assert.rejects(rpc('rider_dashboard()'));assert.equal((await db.query('select id from orders')).rows.length,0);
+await db.exec('reset role');await db.query('update riders set active=false where user_id=$1',[a]);await as(a);assert.equal(await rpc('accept_order($1)',[two]),'not_authorized');await assert.rejects(rpc('rider_dashboard()'));
+await db.exec('reset role;set role service_role');
+const claimed=(await db.query('select * from claim_push_jobs()')).rows;assert.equal(claimed.length,2);assert.equal((await db.query('select * from claim_push_jobs()')).rows.length,0);
+await db.exec('reset role');await db.query("update order_push_jobs set due_at=now()-interval '1 minute' where kind='reminder'");await db.exec('set role service_role');assert.equal((await db.query('select * from claim_push_jobs()')).rows.length,2);
+await db.exec('reset role');await db.query('update riders set active=true where user_id=$1',[a]);
+for(const stage of ['awaiting_charge','confirmed','out_for_delivery']){
+ await db.exec('reset role');const trial=await order();await as(a);assert.equal(await rpc('accept_order($1)',[trial]),'accepted');
+ if(stage!=='awaiting_charge')await rpc('set_quote($1,100,30)',[trial]);
+ if(stage==='out_for_delivery')await rpc('mark_out_for_delivery($1)',[trial]);
+ await as(b);assert.equal(await rpc("rider_cancel_order($1,'other','Cannot deliver')",[trial]),'Order already changed');
+ await as(a);assert.equal(await rpc("rider_cancel_order($1,'other','')",[trial]),'Choose a reason and add a note for other');
+ if(stage==='awaiting_charge'){
+  assert.equal(await rpc("rider_cancel_order($1,'no_answer','')",[trial]),'Call the customer first');await rpc('log_call_attempt($1)',[trial]);
+  assert.equal(await rpc("rider_cancel_order($1,'no_answer','')",[trial]),'cancelled');
+ }else assert.equal(await rpc("rider_cancel_order($1,'other','Cannot deliver')",[trial]),'cancelled');
+ assert.equal((await rpc('rider_dashboard()')).active,null);
+ assert.equal(await rpc("rider_cancel_order($1,'other','Again')",[trial]),'Order already changed');
+}
+
+await db.exec('reset role');const cleanupSql=await readFile('supabase/migrations/202611040001_order_cleanup.sql','utf8');await db.exec(cleanupSql);await db.exec(cleanupSql);
+const terminal=await order(),active=await order(),changed=await order();
+await db.query("update orders set created_at=now()-interval '2 years',status='cancelled',cancelled_at=now()-interval '2 years' where id=any($1::uuid[])",[[terminal,changed]]);
+await db.query("update orders set created_at=now()-interval '2 years' where id=$1",[active]);
+await as(a);await assert.rejects(rpc('prepare_order_cleanup(12)'));await assert.rejects(rpc("delete_old_order_batch($1,'DELETE')",[terminal]));
+await as(admin);await assert.rejects(rpc('prepare_order_cleanup(0)'));let batch=await rpc('prepare_order_cleanup(12)');assert.equal(batch.orders.length,2);assert.ok(!batch.orders.some(o=>o.order_data.id===active));
+await assert.rejects(rpc("delete_old_order_batch($1,'yes')",[batch.batchId]));
+await db.exec('reset role');await db.query("update orders set address='Changed address' where id=$1",[changed]);await as(admin);await assert.rejects(rpc("delete_old_order_batch($1,'DELETE')",[batch.batchId]),/changed/);
+await db.exec('reset role');assert.equal((await db.query('select id from orders where id=$1',[terminal])).rows.length,1);
+await as(admin);batch=await rpc('prepare_order_cleanup(12)');assert.equal(await rpc("delete_old_order_batch($1,'DELETE')",[batch.batchId]),2);await assert.rejects(rpc("delete_old_order_batch($1,'DELETE')",[batch.batchId]),/expired/);
+await db.exec('reset role');assert.equal((await db.query('select id from orders where id=$1',[active])).rows.length,1);assert.equal((await db.query('select * from order_push_jobs where order_id=$1',[terminal])).rows.length,0);
+await db.exec('set role anon');await assert.rejects(rpc('prepare_order_cleanup(12)'));await assert.rejects(db.query('select * from order_cleanup_batches'));
+await db.close();console.log('PASS admin-only cleanup, age/status scope, confirmations, snapshot change refusal, atomic deletion, dependency cleanup and active-order preservation');

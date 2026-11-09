@@ -9,8 +9,8 @@ import "leaflet/dist/leaflet.css";
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
 
 const RESTAURANT_CENTER = [
-  Number(import.meta.env.VITE_RESTAURANT_LAT) || 26.0023,
-  Number(import.meta.env.VITE_RESTAURANT_LNG) || 63.043,
+  Number(import.meta.env.VITE_RESTAURANT_LAT) || 26.0055083,
+  Number(import.meta.env.VITE_RESTAURANT_LNG) || 63.0600925,
 ];
 
 function PinPicker({ onPick }) {

@@ -3,3 +3,12 @@ verify_jwt = false
 
 [edge_runtime]
 policy = "per_worker"
+
+[auth]
+enable_signup = false
+
+[functions.rider-push]
+verify_jwt = false
+
+[functions.order-notifications]
+verify_jwt = false

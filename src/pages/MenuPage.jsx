@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { getCatalog, menuSections } from "../data/menu.js";
+import { useMenu } from "../context/MenuContext.jsx";
 import Advertisement from "../components/Advertisement.jsx";
 import Footer from "../components/Footer.jsx";
 import Header from "../components/Header.jsx";
 import ProductModal from "../components/ProductModal.jsx";
 import { useCart } from "../context/CartContext.jsx";
 
-const catalog = getCatalog();
 
 function formatPrice(value) {
   return `Rs. ${Number(value || 0).toLocaleString("en-PK")}`;
 }
 
 function imageUrl(image = "") {
-  return `/${image.replace(/^\.\//, "")}`;
+  return image;
 }
 
 export default function MenuPage({ area, onAreaChange }) {
   const { count, addItem } = useCart();
+  const { catalog, menuSections, loading, error, refresh } = useMenu();
+  const [search,setSearch]=useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [showAd, setShowAd] = useState(false);
   const [activeCategory, setActiveCategory] = useState("");
@@ -54,7 +55,7 @@ export default function MenuPage({ area, onAreaChange }) {
       window.removeEventListener("scroll", scheduleUpdate);
       window.removeEventListener("resize", scheduleUpdate);
     };
-  }, []);
+  }, [menuSections]);
 
   useEffect(() => {
     const bar = categoryBarRef.current;
@@ -69,11 +70,12 @@ export default function MenuPage({ area, onAreaChange }) {
   const groupedItems = useMemo(() => {
     const groups = new Map();
     for (const item of catalog) {
+      if(!`${item.name} ${item.desc || ''}`.toLowerCase().includes(search.trim().toLowerCase()))continue;
       if (!groups.has(item.sectionId)) groups.set(item.sectionId, []);
       groups.get(item.sectionId).push(item);
     }
     return groups;
-  }, []);
+  }, [catalog,search]);
 
   useEffect(() => {
     let timer;
@@ -92,7 +94,7 @@ export default function MenuPage({ area, onAreaChange }) {
 
   return (
     <div className="menu-page" ref={pageRef}>
-      <Header count={count} area={area} onAreaChange={onAreaChange} />
+      <Header count={count} compactLogo />
       <div className="nav2" ref={categoryBarRef} role="navigation" aria-label="Menu categories">
         {menuSections.map((section) => (
           <div className={`items${activeCategory === section.id ? " active" : ""}`} key={section.id}><a href={`#${section.id}`} aria-current={activeCategory === section.id ? "location" : undefined}>{section.title.startsWith("PIZZA") ? "Pizzas" : section.title.replace(" PREMIUM", "").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()).replace("Bbq", "BBQ")}</a></div>
@@ -103,20 +105,24 @@ export default function MenuPage({ area, onAreaChange }) {
         <div className="hero-wrap">
           <img className="hero-img" src="/images/kfc hero section image.png" alt="Kech Food Center meals" />
         </div>
+        <div className="menu-search"><label htmlFor="menu-search">Find your food</label><input id="menu-search" type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pizza, burger, drinks…"/>{search&&<button onClick={()=>setSearch('')}>Clear search</button>}{search&&!groupedItems.size&&<p role="status">No food matches your search.</p>}</div>
         <section id="menu" className="menu-container" aria-label="Our menu">
-          {menuSections.map((section) => (
+          {loading && <div className="menu-skeleton" role="status" aria-label="Loading menu">{Array.from({length:6},(_,i)=><div key={i}/>)}</div>}
+          {error && <p role="alert">Unable to load the menu. {error} <button onClick={refresh}>Try again</button></p>}
+          {!loading && !error && !catalog.length && <p>The menu will be available soon.</p>}
+          {menuSections.filter(section=>!search.trim() || groupedItems.has(section.id)).map((section) => (
             <section className="menu-category" key={section.id}>
               <h2 id={section.id}>{section.title}</h2>
               <div className="pizza-section">
                 {(groupedItems.get(section.id) || []).map((item) => {
                   const fromPrice = item.options?.[0]?.price ?? item.price;
                   return (
-                    <button className="pizza-section-boxes" type="button" key={item.id} onClick={() => setSelectedItem(item)}>
+                    <button className="pizza-section-boxes" type="button" key={item.id} disabled={!item.is_available} onClick={() => setSelectedItem(item)}>
                       <img src={imageUrl(item.image)} alt={item.name} loading="lazy" />
                       <span className="manu-card-cointainer">
                         <span className="product-name">{item.name}<i className="ri-add-circle-line" aria-hidden="true" /></span>
                         <span className="product-description">{item.desc}</span>
-                        <span className="product-price">From <strong>{formatPrice(fromPrice)}</strong></span>
+                        <span className="product-price">{item.is_available ? <>From <strong>{formatPrice(fromPrice)}</strong></> : <strong>Sold out</strong>}</span>
                       </span>
                     </button>
                   );

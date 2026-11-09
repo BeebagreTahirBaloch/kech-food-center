@@ -1,0 +1,9 @@
+import {useEffect,useState} from 'react';
+import {adminSupabase as client} from '../lib/supabase.js';
+export default function AdminRiderCapacity(){
+ const [limit,setLimit]=useState(3),[radius,setRadius]=useState(1),[loaded,setLoaded]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ async function load(){const {data,error}=await client.from('delivery_settings').select('max_active_orders,nearby_order_km').eq('id',true).single();if(error){setMessage('Apply the multiple-orders migration, then reload these settings.');return;}setLimit(data.max_active_orders);setRadius(data.nearby_order_km);setLoaded(true);setMessage('');}
+ useEffect(()=>{load();},[]);
+ async function save(e){e.preventDefault();setBusy(true);try{const {error}=await client.from('delivery_settings').update({max_active_orders:Number(limit),nearby_order_km:Number(radius)}).eq('id',true).select('id').single();if(error)throw error;setMessage('Rider order limits saved. Existing assignments are kept.');}catch{setMessage('Save was not confirmed. Reload and check the values before trying again.');}finally{setBusy(false);}}
+ return <section><h2>Multiple orders per rider</h2><p>Allow nearby deliveries together. The distance limit applies between every pair of delivery pins, not from the restaurant. Riders must check the road route and review each arrival estimate.</p>{message&&<p role="status">{message}</p>}{loaded?<form onSubmit={save}><label>Maximum active orders per rider<input type="number" min="1" max="5" step="1" required value={limit} onChange={e=>setLimit(e.target.value)}/></label><label>Maximum distance between delivery pins (km)<input type="number" min="0.1" max="10" step="0.1" required value={radius} onChange={e=>setRadius(e.target.value)}/></label><button disabled={busy}>Save rider limits</button></form>:null}<button type="button" disabled={busy} onClick={load}>Reload rider limits</button></section>;
+}

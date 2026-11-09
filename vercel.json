@@ -1,5 +1,39 @@
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/" }
+    {
+      "source": "/(.*)",
+      "destination": "/"
+    }
+  ],
+  "headers": [
+    {"source":"/notifications-sw.js","headers":[{"key":"Cache-Control","value":"no-cache"},{"key":"Service-Worker-Allowed","value":"/"}]},
+    {"source":"/customer.webmanifest","headers":[{"key":"Content-Type","value":"application/manifest+json"},{"key":"Cache-Control","value":"no-cache"}]},
+    {"source":"/owner.webmanifest","headers":[{"key":"Content-Type","value":"application/manifest+json"},{"key":"Cache-Control","value":"no-cache"}]},
+    {
+      "source": "/rider-sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        },
+        {
+          "key": "Service-Worker-Allowed",
+          "value": "/rider"
+        }
+      ]
+    },
+    {
+      "source": "/rider.webmanifest",
+      "headers": [
+        {
+          "key": "Content-Type",
+          "value": "application/manifest+json"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
   ]
 }

@@ -1,6 +1,5 @@
-import { getCatalog } from "../../../src/data/menu.js";
-
-const PRODUCTS = new Map(getCatalog().map((item) => [item.id, item]));
+import { deliveryDistance } from './delivery.js';
+export { suggestedCharge } from './delivery.js';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function isUuid(value: unknown): value is string {
@@ -19,37 +18,21 @@ export function validateCustomer(value: unknown) {
   return { name, phone, address };
 }
 
-export function priceItems(value: unknown) {
+export function validateCart(value: unknown) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 50) {
     throw new Error("Add between 1 and 50 menu items to your order.");
   }
 
   return value.map((line) => {
     const requestItem = line && typeof line === "object" ? line as Record<string, unknown> : {};
-    const product = PRODUCTS.get(String(requestItem.productId || ""));
     const quantity = Number(requestItem.quantity);
-    if (!product) throw new Error("One of the selected menu items is unavailable. Please refresh your cart.");
+    if (!isUuid(requestItem.itemId) || (requestItem.sizeId !== null && !isUuid(requestItem.sizeId))) throw new Error("Refresh your cart and select valid menu items.");
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error("Each item quantity must be between 1 and 99.");
 
-    let option: { label: string; price: number } | undefined;
-    if (product.options.length) {
-      option = product.options.find((choice) => choice.label === requestItem.optionLabel);
-      if (!option) throw new Error(`Choose an available size for ${product.name}.`);
-    } else if (requestItem.optionLabel) {
-      throw new Error(`The selected option is not available for ${product.name}.`);
-    }
-
-    const productPrice = (product as unknown as { price?: number }).price;
-    const unitPrice = Number(option?.price ?? productPrice);
-    if (!Number.isSafeInteger(unitPrice) || unitPrice < 1) throw new Error(`Price is missing for ${product.name}.`);
     return {
-      productId: product.id,
-      name: product.name,
-      image: product.image,
-      optionLabel: option?.label || "",
-      unitPrice,
+      itemId: requestItem.itemId,
+      sizeId: requestItem.sizeId,
       quantity,
-      lineTotal: unitPrice * quantity,
     };
   });
 }
@@ -57,16 +40,24 @@ export function priceItems(value: unknown) {
 export function publicOrder(row: Record<string, unknown>) {
   return {
     id: row.id,
+    arrivalEtaAt:row.arrival_eta_at,delayReason:row.delay_reason,
+    acceptedAt: row.accepted_at, releasedAt: row.released_at,
+    arrivedAt: row.arrived_at, customerHereAt: row.customer_here_at, customerHereUsed: row.customer_here_used,
+    cancelledAt: row.cancelled_at, cancelledBy: row.cancelled_by, cancelReason: row.cancel_reason,
     items: row.items,
     lat: row.lat,
     lng: row.lng,
     subtotal: row.subtotal,
     distanceKm: row.distance_km,
+    estimatedDeliveryCharge: row.estimated_delivery_charge,
     deliveryCharge: row.delivery_charge,
     total: row.total,
     status: row.status,
     etaMinutes: row.eta_minutes,
     createdAt: row.created_at,
+    confirmedAt: row.confirmed_at,
+    outForDeliveryAt: row.out_for_delivery_at,
+    deliveredAt: row.delivered_at,
   };
 }
 
@@ -93,7 +84,7 @@ function validateCoordinates(lat: number, lng: number) {
 
 function coordinatePair(value: string | null) {
   if (!value) return null;
-  const match = value.match(/(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)/);
+  const match = value.trim().match(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/);
   if (!match) return null;
   const lat = Number(match[1]);
   const lng = Number(match[2]);
@@ -105,6 +96,7 @@ export async function parseGoogleMapsUrl(input: string) {
   let url: URL;
   try { url = new URL(input); } catch { throw new Error("That Google Maps link is invalid. Please paste a full link or drop a pin."); }
   if (url.protocol !== "https:") throw new Error("Please paste a secure Google Maps link or drop a pin on the map.");
+  if(url.username || url.password || url.port)throw new Error("Please use a standard Google Maps link or drop a pin.");
   const host = url.hostname.toLowerCase();
   const isShortLink = host === "maps.app.goo.gl" || host === "goo.gl";
   const isGoogleMaps = host === "google.com" || host.endsWith(".google.com");
@@ -124,6 +116,7 @@ export async function parseGoogleMapsUrl(input: string) {
         }
         await response.body?.cancel();
         nextUrl = new URL(redirectTo, nextUrl);
+        if(nextUrl.protocol!=="https:" || nextUrl.username || nextUrl.password || nextUrl.port)throw new Error("Unsafe Maps redirect");
         const nextHost = nextUrl.hostname.toLowerCase();
         if (nextHost !== "maps.app.goo.gl" && nextHost !== "goo.gl" && nextHost !== "google.com" && !nextHost.endsWith(".google.com")) {
           throw new Error("That short link did not redirect to Google Maps.");
@@ -139,49 +132,40 @@ export async function parseGoogleMapsUrl(input: string) {
     }
   }
 
-  const pathMatch = resolvedUrl.pathname.match(/@(-?\d{1,2}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)/);
-  if (pathMatch) return validateCoordinates(Number(pathMatch[1]), Number(pathMatch[2]));
-
-  const dataMatch = decodeURIComponent(`${resolvedUrl.pathname}${resolvedUrl.search}`).match(/!3d(-?\d{1,2}(?:\.\d+)?)!4d(-?\d{1,3}(?:\.\d+)?)/);
-  if (dataMatch) return validateCoordinates(Number(dataMatch[1]), Number(dataMatch[2]));
-
-  for (const key of ["q", "query", "destination", "ll"]) {
-    const pair = coordinatePair(resolvedUrl.searchParams.get(key));
-    if (pair) return pair;
+  const missing = "We couldn't identify the delivery destination in that link. Please share a location pin or drop a pin on the map.";
+  // Explicit directions destinations must never fall back to an origin or camera.
+  for (const key of ["destination", "daddr"]) {
+    if(resolvedUrl.searchParams.has(key)) {
+      const pair=coordinatePair(resolvedUrl.searchParams.get(key));
+      if(pair)return pair;
+      throw new Error(missing);
+    }
   }
-
-  throw new Error("We couldn't find coordinates in that Google Maps link. Please drop a pin on the map instead.");
+  const decoded=decodeURIComponent(`${resolvedUrl.pathname}${resolvedUrl.search}`);
+  const places=[...decoded.matchAll(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)(?=!|&|$)/g)];
+  // Embedded route data may contain origins and stops: never guess a destination.
+  if(/\/maps\/dir(?:\/|$)/.test(resolvedUrl.pathname))throw new Error(missing);
+  if(places.length===1)return validateCoordinates(Number(places[0][1]),Number(places[0][2]));
+  if(places.length>1)throw new Error(missing);
+  for(const key of ["query","q"]) {
+    if(resolvedUrl.searchParams.has(key)) {
+      const pair=coordinatePair(resolvedUrl.searchParams.get(key));
+      if(pair)return pair;
+      throw new Error(missing);
+    }
+  }
+  // @lat,lng, ll and center may be a camera position rather than the selected pin.
+  throw new Error(missing);
 }
 
 export async function calculateRoadDistanceKm(destination: { lat: number; lng: number }) {
-  const restaurantLat = Number(Deno.env.get("RESTAURANT_LAT"));
-  const restaurantLng = Number(Deno.env.get("RESTAURANT_LNG"));
-  if (!Number.isFinite(restaurantLat) || !Number.isFinite(restaurantLng)) throw new Error("Restaurant coordinates are not configured.");
-
-  try {
-    const routeUrl = `https://router.project-osrm.org/route/v1/driving/${restaurantLng},${restaurantLat};${destination.lng},${destination.lat}?overview=false&alternatives=false&steps=false`;
-    const response = await fetch(routeUrl, { signal: AbortSignal.timeout(4500) });
-    if (response.ok) {
-      const data = await response.json();
-      const meters = data?.code === "Ok" ? Number(data.routes?.[0]?.distance) : NaN;
-      if (Number.isFinite(meters) && meters > 0) return Math.round((meters / 1000) * 10) / 10;
-    }
-  } catch { /* Use the road-distance estimate below if OSRM is unavailable. */ }
-
-  const toRadians = (degrees: number) => degrees * Math.PI / 180;
-  const dLat = toRadians(destination.lat - restaurantLat);
-  const dLng = toRadians(destination.lng - restaurantLng);
-  const lat1 = toRadians(restaurantLat);
-  const lat2 = toRadians(destination.lat);
-  const haversine = 2 * 6371 * Math.asin(Math.sqrt(
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2,
-  ));
-  return Math.round(haversine * 1.3 * 10) / 10;
+  return (await calculateDeliveryDistance(destination)).distanceKm;
 }
 
-export function suggestedCharge(distanceKm: number) {
-  if (distanceKm <= 2) return 100;
-  if (distanceKm <= 5) return 200;
-  if (distanceKm <= 8) return 300;
-  return 400;
+export async function calculateDeliveryDistance(destination: { lat: number; lng: number }) {
+  return deliveryDistance(
+    {lat: Number(Deno.env.get('RESTAURANT_LAT') || NaN), lng: Number(Deno.env.get('RESTAURANT_LNG') || NaN)},
+    destination,
+    {apiKey: Deno.env.get('OPENROUTESERVICE_API_KEY') || ''},
+  );
 }

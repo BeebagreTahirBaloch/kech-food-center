@@ -30,7 +30,7 @@ export function isAllowedOrigin(origin: string | null) {
 export function preflight(request: Request) {
   const origin = request.headers.get("origin");
   if (!isAllowedOrigin(origin)) return new Response("Origin not allowed", { status: 403 });
-  return new Response("ok", { status: 204, headers: corsHeaders(request) });
+  return new Response(null, { status: 204, headers: corsHeaders(request) });
 }
 
 export function jsonResponse(request: Request, payload: unknown, status = 200) {

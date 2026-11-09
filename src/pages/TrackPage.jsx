@@ -1,197 +1,71 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import L from "leaflet";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import "leaflet/dist/leaflet.css";
-import Footer from "../components/Footer.jsx";
-import Header from "../components/Header.jsx";
-import { useCart } from "../context/CartContext.jsx";
-import { isSupabaseConfigured, supabase } from "../lib/supabase.js";
-
-L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
-
-const statusText = {
-  pending: ["Waiting for the rider", "Your order is on its way to the rider."],
-  awaiting_charge: ["Rider is setting the delivery charge", "The rider accepted your order and is choosing a delivery charge and ETA."],
-  quoted: ["Your delivery quote is ready", "Review the delivery charge and final total, then confirm or cancel."],
-  confirmed: ["Order confirmed", "The rider has your confirmation and is preparing your order."],
-  out_for_delivery: ["Out for delivery", "The rider is on the way with your order."],
-  delivered: ["Delivered", "Enjoy your meal. Thank you for ordering from Kech Food Center!"],
-  declined: ["Rider unavailable", "The rider could not take this order. Please call us for help."],
-  cancelled: ["Order cancelled", "This order has been cancelled."],
-};
-
-function formatPrice(value) {
-  return `Rs. ${Number(value || 0).toLocaleString("en-PK")}`;
-}
-
-function formatStatus(status) {
-  return status?.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()) || "Order update";
-}
-
-function normalizeOrder(order) {
-  return {
-    ...order,
-    deliveryCharge: order.deliveryCharge ?? order.delivery_charge,
-    distanceKm: order.distanceKm ?? order.distance_km,
-    etaMinutes: order.etaMinutes ?? order.eta_minutes,
-  };
-}
-
-async function responseError(error, fallback) {
+import { functionErrorMessage } from '../lib/functionError.js';
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import L from 'leaflet';
+import markerIcon from 'leaflet/dist/images/marker-icon.png';
+import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import 'leaflet/dist/leaflet.css';
+import Header from '../components/Header.jsx';
+import Footer from '../components/Footer.jsx';
+import OrderAlerts from '../components/OrderAlerts.jsx';
+import OrderCountdown from '../components/OrderCountdown.jsx';
+import PushAlerts from '../components/PushAlerts.jsx';
+import RidersBusyNotice from '../components/RidersBusyNotice.jsx';
+import useOrder from '../lib/useOrder.jsx';
+import { supabase } from '../lib/supabase.js';
+import { useCart } from '../context/CartContext.jsx';
+import { suggestedCharge } from '../../supabase/functions/_shared/delivery.js';
+L.Icon.Default.mergeOptions({iconRetinaUrl:markerIcon2x,iconUrl:markerIcon,shadowUrl:markerShadow});
+const money=n=>`Rs. ${Number(n || 0).toLocaleString('en-PK')}`;
+const headings={pending:'Waiting for the rider',awaiting_charge:'Your rider accepted your order',quoted:'Your rider accepted your order',confirmed:'Your rider accepted your order',preparing:'Preparing your order',out_for_delivery:'Your order is on the way',delivered:'Your order was delivered. Enjoy your meal!',cancelled:'Your order was cancelled',declined:'Your order was cancelled'};
+export default function TrackPage({area,onAreaChange}) {
+ const {id}=useParams(); const {count}=useCart();
+ const {order,loading,error,setError,loadOrder,connected}=useOrder(id);
+ const [pushEnabled,setPushEnabled]=useState(false);
+ useEffect(()=>setPushEnabled(false),[id]);
+ const [cancelError,setCancelError]=useState('');
+ const [cancelling,setCancelling]=useState(false),[now,setNow]=useState(Date.now());
+ useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
+ const steps=['Order sent','Rider accepted','Out for delivery','Delivered'];
+ const step=({pending:0,awaiting_charge:1,quoted:1,confirmed:1,preparing:1,out_for_delivery:2,delivered:3})[order?.status] ?? -1;
+ const estimate=order?.estimatedDeliveryCharge ?? (Number.isFinite(order?.distanceKm) ? suggestedCharge(order.distanceKm) : null);
+ async function cancelOrder(){
+  if(!window.confirm('Cancel this order?'))return;
+  setCancelling(true);setCancelError('');
   try {
-    const body = await error.context?.json();
-    return body?.error || error.message || fallback;
-  } catch {
-    return error.message || fallback;
-  }
-}
-
-export default function TrackPage({ area, onAreaChange }) {
-  const { id } = useParams();
-  const { count } = useCart();
-  const [order, setOrder] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [responding, setResponding] = useState(false);
-
-  const loadOrder = useCallback(async () => {
-    if (!isSupabaseConfigured) {
-      setError("Connect Supabase to view order tracking. Add the VITE_SUPABASE values to your .env file.");
-      setLoading(false);
-      return;
-    }
-    try {
-      const { data, error: functionError } = await supabase.functions.invoke("get-order", { body: { orderId: id } });
-      if (functionError) throw new Error(await responseError(functionError, "We couldn't load this order."));
-      if (!data?.order) throw new Error(data?.error || "We couldn't find this order.");
-      setOrder(normalizeOrder(data.order));
-      setError("");
-    } catch (loadError) {
-      setError(loadError.message || "We couldn't load this order. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    let active = true;
-    if (!isSupabaseConfigured) {
-      setError("Connect Supabase to view order tracking. Add the VITE_SUPABASE values to your .env file.");
-      setLoading(false);
-      return undefined;
-    }
-
-    setOrder(null);
-    setLoading(true);
-    loadOrder();
-    const channel = supabase
-      .channel(`order:${id}`, { config: { private: false } })
-      .on("broadcast", { event: "order_update" }, ({ payload }) => {
-        // Public broadcasts are refresh signals; only trust the saved server order.
-        if (active && payload?.id === id) loadOrder();
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") loadOrder();
-      });
-
-    const refreshTimer = window.setInterval(loadOrder, 30000);
-    return () => {
-      active = false;
-      window.clearInterval(refreshTimer);
-      supabase.removeChannel(channel);
-    };
-  }, [id, loadOrder]);
-
-  async function respond(action) {
-    setResponding(true);
-    setError("");
-    try {
-      const { data, error: functionError } = await supabase.functions.invoke("customer-respond", { body: { orderId: id, action } });
-      if (functionError) throw new Error(await responseError(functionError, "We couldn't update your order."));
-      if (!data?.order) throw new Error(data?.error || "We couldn't update your order.");
-      setOrder(normalizeOrder(data.order));
-    } catch (respondError) {
-      setError(respondError.message || "We couldn't update your order. Please try again.");
-    } finally {
-      setResponding(false);
-    }
-  }
-
-  const [heading, description] = statusText[order?.status] || [formatStatus(order?.status), "Order status is updating."];
-
-  return (
-    <>
-      <Header count={count} area={area} onAreaChange={onAreaChange} />
-      <main className="track-page">
-        <div className="track-heading">
-          <p className="eyebrow">KECH FOOD CENTER · TURBAT</p>
-          <h1>Track your order</h1>
-          <p className="track-code">Order {id?.slice(0, 8).toUpperCase()}</p>
-        </div>
-
-        {loading && <div className="track-card"><div className="loading-spinner" /><p>Loading your order…</p></div>}
-        {!loading && error && !order && <div className="track-card track-error" role="alert"><i className="ri-error-warning-line" /><p>{error}</p><button onClick={loadOrder}>Try again</button></div>}
-
-        {order && (
-          <div className="track-layout">
-            <section className={`track-status-card status-${order.status}`}>
-              <div className="track-status-symbol"><i className={order.status === "delivered" ? "ri-checkbox-circle-fill" : order.status === "declined" || order.status === "cancelled" ? "ri-close-circle-fill" : "ri-e-bike-2-line"} /></div>
-              <div><span className="status-label">{formatStatus(order.status)}</span><h2>{heading}</h2><p>{description}</p></div>
-              {order.distanceKm != null && <span className="distance-pill"><i className="ri-route-line" /> {Number(order.distanceKm).toFixed(1)} km</span>}
-            </section>
-
-            {order.status === "quoted" && (
-              <section className="quote-card">
-                <div><span>Delivery charge</span><strong>{formatPrice(order.deliveryCharge)}</strong></div>
-                {order.etaMinutes && <div><span>Estimated time</span><strong>{order.etaMinutes} minutes</strong></div>}
-                <div className="quote-total"><span>Final total</span><strong>{formatPrice(order.total)}</strong></div>
-                <p>The rider has set this charge based on the route distance. Confirm to send the order to the kitchen.</p>
-                <div className="quote-actions">
-                  <button className="confirm-quote-button" disabled={responding} onClick={() => respond("confirm")}>{responding ? "PLEASE WAIT…" : "CONFIRM ORDER"}</button>
-                  <button className="cancel-quote-button" disabled={responding} onClick={() => respond("cancel")}>CANCEL</button>
-                </div>
-              </section>
-            )}
-
-            {error && <p className="checkout-error track-inline-error" role="alert">{error}</p>}
-
-            <div className="track-layout-grid">
-              <section className="track-card order-summary">
-                <h2>Order summary</h2>
-                <div className="tracking-items">
-                  {(order.items || []).map((item) => (
-                    <div className="tracking-item" key={`${item.productId || item.product_id}:${item.optionLabel || item.option_label}`}>
-                      <span>{item.quantity} × {item.name}{(item.optionLabel || item.option_label) && ` · ${item.optionLabel || item.option_label}`}</span>
-                      <strong>{formatPrice(item.lineTotal ?? item.line_total ?? (item.unitPrice ?? item.unit_price) * item.quantity)}</strong>
-                    </div>
-                  ))}
-                </div>
-                <div className="tracking-totals"><div><span>Subtotal</span><strong>{formatPrice(order.subtotal)}</strong></div>
-                  {order.deliveryCharge != null && <div><span>Delivery charge</span><strong>{formatPrice(order.deliveryCharge)}</strong></div>}
-                  <div className="tracking-grand-total"><span>{order.total == null ? "Subtotal so far" : "Total"}</span><strong>{formatPrice(order.total ?? order.subtotal)}</strong></div>
-                </div>
-              </section>
-
-              {order.lat != null && order.lng != null && (
-                <section className="track-card tracking-map-card">
-                  <h2>Delivery location</h2>
-                  <MapContainer center={[Number(order.lat), Number(order.lng)]} zoom={15} scrollWheelZoom className="tracking-map">
-                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <Marker position={[Number(order.lat), Number(order.lng)]}><Popup>Delivery location</Popup></Marker>
-                  </MapContainer>
-                </section>
-              )}
-            </div>
-            <p className="tracking-help">Need help? <a href="tel:03352053652">Call Kech Food Center · 0335 2053652</a></p>
-          </div>
-        )}
-        <Link className="back-to-menu" to="/">Back to the menu</Link>
-      </main>
-      <Footer />
-    </>
-  );
+   const {data,error}=await supabase.functions.invoke('cancel-order',{body:{orderId:id}});
+   if(error){if(error.context?.status===409)await loadOrder();throw new Error(await functionErrorMessage(error,'Unable to cancel the order. Please contact the restaurant.'));}
+   if(!data?.cancelled)throw new Error('Cancellation was not confirmed. Please refresh the order before trying again.');
+   await loadOrder();
+  }catch(e){setCancelError(e.message);}finally{setCancelling(false);}
+ }
+ return <><Header count={count} area={area} onAreaChange={onAreaChange}/><main className="track-page">
+  <OrderAlerts key={id} order={order?.id===id?order:null} connected={connected} systemNotifications={!pushEnabled}/>
+  <div className="track-heading"><p className="eyebrow">KECH FOOD CENTER · TURBAT</p><h1>Track your order</h1><p className="track-code">Order {id?.slice(0,8).toUpperCase()}</p></div>
+  {loading && <div className="track-card"><div className="loading-spinner"/>Loading your order...</div>}
+  {error && <div className="track-card track-error" role="alert"><p>{error}</p><button onClick={loadOrder}>Try again</button></div>}
+  {cancelError && <div className="track-card track-error" role="alert"><p>{cancelError}</p>{order?.status==='pending'&&<button disabled={cancelling} onClick={cancelOrder}>Try cancellation again</button>}</div>}
+  {order && <div className="track-layout">
+   <ol className="order-steps" aria-label="Delivery progress">{steps.map((text,i)=><li key={text} className={i<step?'complete':i===step?'current':''} aria-current={i===step?'step':undefined}>{text}</li>)}</ol>
+   <OrderCountdown order={order}/>
+   {order.status==='pending'&&<section className="track-card"><p>Your order has been waiting {Math.max(0,Math.floor((now-Date.parse(order.releasedAt||order.createdAt))/60000))} minutes for a rider.</p><RidersBusyNotice/><a className="track-order-link" href="tel:03352053652">Call restaurant</a></section>}
+   {!['delivered','cancelled','declined'].includes(order.status)&&<PushAlerts key={id} orderId={id} onEnabledChange={setPushEnabled}/>}
+   <section className={`track-status-card status-${order.status}`}><div><span className="status-label">{order.status.replaceAll('_',' ')}</span><h2>{order.status==='pending'&&order.releasedAt?'Finding you another rider':order.status==='cancelled'&&order.cancelledBy==='rider'&&order.cancelReason==='no_answer'?'Order cancelled because the rider could not reach you.':headings[order.status]}</h2>{order.status==='pending' && <p>Your order was confirmed when you sent it. Waiting for the rider to set the delivery details.</p>}</div>{order.distanceKm!=null && <span className="distance-pill">{order.distanceKm} km</span>}</section>
+   {order.rider && <section className="track-card"><h2>Your rider: {order.rider.name}</h2><p>{order.rider.phone}</p><a className="track-order-link" href={`tel:${order.rider.phone}`}>Call rider</a></section>}
+   {order.status==='out_for_delivery'&&order.arrivedAt&&<section className="quote-card"><h2>Your rider has arrived</h2><p>Please meet your rider. You can ask them to wait once.</p>{order.customerHereUsed || order.customerHereAt?<p>{order.customerHereAt?'Your response was recorded. The wait time has restarted.':'You already used your one wait extension for this order.'}</p>:<button className="track-order-link" disabled={cancelling||now>Date.parse(order.arrivedAt)+(order.waitMinutes??10)*60000} onClick={async()=>{setCancelling(true);try{const {data,error}=await supabase.functions.invoke('customer-here',{body:{orderId:id}});if(error)throw Error('Unable to record your response. The wait time may have ended.');if(!data.ok)throw Error(data.error);await loadOrder();}catch(e){setError(e.message);}finally{setCancelling(false);}}}>I'm here</button>}</section>}
+   {order.status==='pending' && <button className="cancel-quote-button" disabled={cancelling} onClick={cancelOrder}>{cancelling?'Cancelling...':'Cancel order'}</button>}
+   {['quoted','confirmed','preparing'].includes(order.status) && <section className="quote-card"><h2>Your rider accepted your order</h2><div><span>Delivery charge</span><strong>{money(order.deliveryCharge)}</strong></div><div><span>Estimated time</span><strong>{order.etaMinutes} minutes</strong></div><div className="quote-total"><span>Final total</span><strong>{money(order.total)}</strong></div><p>No further customer confirmation is needed.</p></section>}
+   <div className="track-layout-grid"><section className="track-card order-summary"><h2>Order summary</h2><div className="tracking-items">{(order.items || []).map((item,i)=><div className="tracking-item" key={i}><span>{item.quantity} × {item.name}{(item.optionLabel || item.option_label) && ` · ${item.optionLabel || item.option_label}`}</span><strong>{money(item.lineTotal ?? item.line_total ?? (item.unitPrice ?? item.unit_price)*item.quantity)}</strong></div>)}</div>
+    <div className="tracking-totals"><div><span>Subtotal</span><strong>{money(order.subtotal)}</strong></div>
+     {order.deliveryCharge!=null ? <div><span>Delivery charge</span><strong>{money(order.deliveryCharge)}</strong></div> : estimate!=null && <div><span>Estimated delivery charges</span><strong>{money(estimate)}</strong></div>}
+     {order.estimatedDeliveryCharge!=null && order.deliveryCharge!=null && order.estimatedDeliveryCharge!==order.deliveryCharge && <p>Estimated {money(order.estimatedDeliveryCharge)} &gt; Final {money(order.deliveryCharge)}</p>}
+     <div className="tracking-grand-total"><span>{order.total!=null?'Total':estimate!=null?'Estimated total':'Subtotal so far'}</span><strong>{money(order.total ?? (order.subtotal+(estimate ?? 0)))}</strong></div>
+    </div>{order.deliveryCharge==null && <p className="alert-hint">This is an estimate. The rider sets the final delivery charge.</p>}
+   </section>
+   {order.lat!=null && order.lng!=null && <section className="track-card tracking-map-card"><h2>Delivery location</h2><MapContainer center={[Number(order.lat),Number(order.lng)]} zoom={15} scrollWheelZoom className="tracking-map"><TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/><Marker position={[Number(order.lat),Number(order.lng)]}><Popup>Delivery location</Popup></Marker></MapContainer></section>}
+   </div><p className="tracking-help">Need help? <a href="tel:03352053652">Call Kech Food Center · 0335 2053652</a></p>
+  </div>}<Link className="back-to-menu" to="/">Back to the menu</Link>
+ </main><Footer/></>;
 }

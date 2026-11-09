@@ -3,5 +3,13 @@ dist/
 .env
 .env.local
 .env.supabase
+.env.*
+!.env.example
 .vercel
 .deno-cache/
+
+.test-tools/
+.test-results/
+
+load-test-fixture.json
+.backups/

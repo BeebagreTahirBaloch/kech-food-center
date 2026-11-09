@@ -479,3 +479,24 @@ textarea {
     .cart-item-total { margin-left: auto; font-size: 13px; }
     .order-details-box { padding: 16px; }
 }
+
+/* Compact delivery rates and total, including the pre-location state. */
+.delivery-estimate-panel { margin-top: 18px; padding: 16px; border: 1px solid #eee2df; border-radius: 12px; background: #fffafa; }
+.delivery-estimate-panel h3 { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: #252525; }
+.delivery-estimate-help { margin: 0; font-size: 12px; line-height: 1.65; color: #716562; }
+.delivery-tier-cards { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 8px; margin: 14px 0 0; padding: 0; list-style: none; }
+.delivery-tier-cards li { display: flex; flex-direction: column; gap: 6px; padding: 12px 4px; text-align: center; background: #fff; border: 1px solid #eedddb; border-radius: 9px; }
+.delivery-tier-cards span { font-size: 11px; line-height: 1.4; color: #766661; }
+.delivery-tier-cards strong { font-size: 14px; line-height: 1.4; color: #b91c1c; white-space: nowrap; }
+.delivery-estimate-disclaimer { margin: 12px 0 0; font-size: 11px; line-height: 1.6; color: #887670; }
+.delivery-routing-credit { margin: 8px 0 12px; font-size: 11px; line-height: 1.6; color: #716562; }
+.delivery-routing-credit a { color: inherit; text-decoration: underline; }
+.checkout-estimated-total { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 20px 0; padding: 18px 0 0; border-top: 1px solid #eee; }
+.checkout-estimated-total > div { display: flex; flex-direction: column; gap: 4px; }
+.checkout-estimated-total > div strong { font-size: 15px; line-height: 1.4; }
+.checkout-estimated-total > div span { font-size: 11px; color: #80736f; }
+.checkout-total-amount { color: #b91c1c; font-size: 20px; white-space: nowrap; }
+.checkout-estimate-pending { padding: 6px 9px; border-radius: 6px; background: #f6f3f2; color: #80736f; font-size: 11px; text-align: center; }
+@media (max-width: 360px) { .delivery-estimate-panel { padding: 12px; } .delivery-tier-cards { gap: 5px; } .checkout-estimated-total { gap: 8px; } }
+.cart-page .ordering-hours-notice { margin-bottom: 18px; }
+.delivery-tier-cards {grid-template-columns:repeat(auto-fit,minmax(90px,1fr));}

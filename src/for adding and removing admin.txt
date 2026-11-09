@@ -1,0 +1,45 @@
+how to add multiple admin
+
+
+
+
+
+
+
+
+Your website already supports multiple admins. Repeat these steps for each person:
+1. In Supabase, open Authentication → Users → Add user → Create new user. Enter their email and choose a password for their website account. Enable Auto Confirm User if shown. Supabase user management
+2. Copy the new user’s UID.
+3. Open SQL Editor → New query and run this, replacing the placeholder with that UID:
+   insert into public.admins (user_id)
+   values ('PASTE_NEW_USER_UUID_HERE')
+   on conflict (user_id) do nothing;
+4. They can now open /admin and sign in using their email and the password you created.
+Each admin gets full admin access to menus, orders, riders, settings, and history. Use a separate account for each person so Owner activity identifies who made each change.
+
+Keep public sign-ups disabled. No code changes or redeployment are needed.
+
+
+
+
+
+
+then how to delet admin
+
+
+
+
+
+
+To remove someone’s admin access:
+1. Open Supabase → Authentication → Users and copy that person’s UID.
+2. Open SQL Editor → New query and run:
+   delete from public.admins
+   where user_id = 'PASTE_ADMIN_USER_UUID_HERE';
+Replace the placeholder with their UID.
+
+Their account remains, but they lose admin permissions. Your menu, orders, and activity history stay intact.
+
+Keep your own admin account. No redeployment is needed.
+
+      

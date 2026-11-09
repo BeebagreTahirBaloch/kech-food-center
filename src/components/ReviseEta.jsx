@@ -1,0 +1,7 @@
+import {useState} from 'react';
+export default function ReviseEta({orderId,client,onSaved,onSaveState}){
+ const [minutes,setMinutes]=useState(30),[reason,setReason]=useState('other'),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
+ return <details className="revise-eta"><summary>Update arrival estimate</summary><form onSubmit={async e=>{
+  e.preventDefault();setBusy(true);setMessage('Saving…');onSaveState?.('Saving arrival estimate…');try{const {data,error}=await client.rpc('revise_order_eta',{p_order:orderId,p_minutes:Number(minutes),p_reason:reason});if(error)throw error;if(data!=='updated')throw Error(data);setMessage('Updated arrival estimate saved.');onSaveState?.('Saved — arrival estimate confirmed by the server.');await onSaved?.();}catch{setMessage('Could not confirm the update. Refresh the order before trying again.');onSaveState?.('Arrival estimate save not confirmed. Refresh and review the server time before retrying.');await onSaved?.();}finally{setBusy(false);}
+ }}><label>Minutes from now<input type="number" min="5" max="240" required value={minutes} onChange={e=>setMinutes(e.target.value)}/></label><label>Reason<select value={reason} onChange={e=>setReason(e.target.value)}><option value="traffic">Traffic</option><option value="other">Other delay</option></select></label><button disabled={busy||!navigator.onLine}>Save updated time</button>{message&&<p role="status">{message}</p>}</form></details>;
+}

@@ -1,8 +1,16 @@
+import RiderPage from './pages/RiderPage.jsx';
+import AdminRidersPage from './pages/AdminRidersPage.jsx';
+import AdminSettingsPage from './pages/AdminSettingsPage.jsx';
+import AdminHistoryPage from './pages/AdminHistoryPage.jsx';
+import './operations.css';
 import { useEffect, useState } from "react";
 import { Link, Route, Routes, useLocation } from "react-router-dom";
 import CartPage from "./pages/CartPage.jsx";
 import MenuPage from "./pages/MenuPage.jsx";
 import TrackPage from "./pages/TrackPage.jsx";
+import AdminPage from "./pages/AdminPage.jsx";
+import AdminOrdersPage from "./pages/AdminOrdersPage.jsx";
+import OrdersPage from "./pages/OrdersPage.jsx";
 
 function readDeliveryArea() {
   try { return localStorage.getItem("deliveryArea") || ""; } catch { return ""; }
@@ -38,6 +46,13 @@ export default function App() {
     <>
       <ScrollToTop />
       <Routes>
+        <Route path="/rider/*" element={<RiderPage />} />
+        <Route path="/admin/riders" element={<AdminPage><AdminRidersPage /></AdminPage>} />
+        <Route path="/admin/history" element={<AdminPage><AdminHistoryPage /></AdminPage>} />
+        <Route path="/admin/settings" element={<AdminPage><AdminSettingsPage /></AdminPage>} />
+        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/orders" element={<AdminPage><AdminOrdersPage /></AdminPage>} />
+        <Route path="/orders" element={<OrdersPage />} />
         <Route path="/" element={<MenuPage area={area} onAreaChange={setArea} />} />
         <Route path="/cart" element={<CartPage area={area} onAreaChange={setArea} />} />
         <Route path="/track/:id" element={<TrackPage area={area} onAreaChange={setArea} />} />
