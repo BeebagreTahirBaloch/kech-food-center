@@ -4,6 +4,7 @@ import { useMenu } from "../context/MenuContext.jsx";
 import Advertisement from "../components/Advertisement.jsx";
 import Footer from "../components/Footer.jsx";
 import Header from "../components/Header.jsx";
+import MenuLoadingScreen from "../components/MenuLoadingScreen.jsx";
 import ProductModal from "../components/ProductModal.jsx";
 import { useCart } from "../context/CartContext.jsx";
 
@@ -18,7 +19,7 @@ function imageUrl(image = "") {
 
 export default function MenuPage({ area, onAreaChange }) {
   const { count, addItem } = useCart();
-  const { catalog, menuSections, loading, error, refresh } = useMenu();
+  const { catalog, menuSections, loading, error, ready, refresh } = useMenu();
   const [search,setSearch]=useState('');
   const [selectedItem, setSelectedItem] = useState(null);
   const [showAd, setShowAd] = useState(false);
@@ -28,6 +29,7 @@ export default function MenuPage({ area, onAreaChange }) {
   const specialRef = useRef(null);
 
   useEffect(() => {
+    if (!pageRef.current || !specialRef.current) return;
     let frame;
     const updateCategory = () => {
       const offset = specialRef.current?.getBoundingClientRect().bottom || 150;
@@ -55,7 +57,7 @@ export default function MenuPage({ area, onAreaChange }) {
       window.removeEventListener("scroll", scheduleUpdate);
       window.removeEventListener("resize", scheduleUpdate);
     };
-  }, [menuSections]);
+  }, [menuSections, ready]);
 
   useEffect(() => {
     const bar = categoryBarRef.current;
@@ -78,6 +80,7 @@ export default function MenuPage({ area, onAreaChange }) {
   }, [catalog,search]);
 
   useEffect(() => {
+    if (!ready) return;
     let timer;
     try {
       if (!sessionStorage.getItem("kech-ad-seen")) {
@@ -85,7 +88,7 @@ export default function MenuPage({ area, onAreaChange }) {
       }
     } catch { /* Storage may be disabled by the browser. */ }
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [ready]);
 
   function closeAd() {
     setShowAd(false);
@@ -93,9 +96,11 @@ export default function MenuPage({ area, onAreaChange }) {
   }
 
   return (
-    <div className="menu-page" ref={pageRef}>
+    <>
+    <div className={`menu-page${!ready ? ' is-menu-loading' : ''}`} ref={pageRef} inert={!ready} aria-hidden={!ready ? true : undefined}>
       <Header count={count} compactLogo />
       <div className="nav2" ref={categoryBarRef} role="navigation" aria-label="Menu categories">
+        {!ready && Array.from({ length: 4 }, (_, i) => <span className="menu-category-placeholder" key={i} />)}
         {menuSections.map((section) => (
           <div className={`items${activeCategory === section.id ? " active" : ""}`} key={section.id}><a href={`#${section.id}`} aria-current={activeCategory === section.id ? "location" : undefined}>{section.title.startsWith("PIZZA") ? "Pizzas" : section.title.replace(" PREMIUM", "").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()).replace("Bbq", "BBQ")}</a></div>
         ))}
@@ -107,9 +112,16 @@ export default function MenuPage({ area, onAreaChange }) {
         </div>
         <div className="menu-search"><label htmlFor="menu-search">Find your food</label><input id="menu-search" type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pizza, burger, drinks…"/>{search&&<button onClick={()=>setSearch('')}>Clear search</button>}{search&&!groupedItems.size&&<p role="status">No food matches your search.</p>}</div>
         <section id="menu" className="menu-container" aria-label="Our menu">
-          {loading && <div className="menu-skeleton" role="status" aria-label="Loading menu">{Array.from({length:6},(_,i)=><div key={i}/>)}</div>}
-          {error && <p role="alert">Unable to load the menu. {error} <button onClick={refresh}>Try again</button></p>}
-          {!loading && !error && !catalog.length && <p>The menu will be available soon.</p>}
+          {!ready && <div aria-hidden="true">
+            <div className="menu-preview-heading" />
+            <div className="pizza-section">
+              {Array.from({ length: 6 }, (_, i) => <div className="menu-preview-card" key={i}>
+                <div className="menu-preview-photo" /><div className="menu-preview-line" /><div className="menu-preview-line" />
+              </div>)}
+            </div>
+          </div>}
+          {ready && error && <div className="menu-refresh-notice" role="status"><p>Couldn’t refresh the menu. Please try again for the latest prices and availability.</p><button type="button" onClick={refresh}>Retry</button></div>}
+          {ready && !catalog.length && <p>The menu will be available soon.</p>}
           {menuSections.filter(section=>!search.trim() || groupedItems.has(section.id)).map((section) => (
             <section className="menu-category" key={section.id}>
               <h2 id={section.id}>{section.title}</h2>
@@ -137,5 +149,7 @@ export default function MenuPage({ area, onAreaChange }) {
       {selectedItem && <ProductModal key={selectedItem.id} item={selectedItem} onClose={() => setSelectedItem(null)} onAdd={(item, option, quantity) => { addItem(item, option, quantity); setSelectedItem(null); }} />}
       {showAd && <Advertisement onClose={closeAd} />}
     </div>
+    {!ready && <MenuLoadingScreen loading={loading} onRetry={refresh} />}
+    </>
   );
 }

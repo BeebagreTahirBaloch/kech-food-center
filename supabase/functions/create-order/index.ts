@@ -2,7 +2,9 @@ import {fingerprint,phoneHash,readOrderBody} from '../_shared/orderProtection.ts
 import { dispatchPushJobs } from '../_shared/push.ts';
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { jsonResponse, preflight, rejectOrigin } from "../_shared/cors.ts";
-import { calculateRoadDistanceKm, parseDeliveryLocation, validateCart, validateCustomer, isUuid } from "../_shared/orders.ts";
+import { parseDeliveryLocation, validateCart, validateCustomer, isUuid } from "../_shared/orders.ts";
+import { DeliverySecurityError, deliverySecurityResponse, protectedDeliveryDistance } from '../_shared/deliverySecurity.ts';
+import { DeliveryRoutingError } from '../_shared/delivery.js';
 import { isTelegramEnabled, orderKeyboard, riderChatId, riderOrderMessage, telegram } from "../_shared/telegram.ts";
 
 function serviceClient() {
@@ -40,14 +42,24 @@ Deno.serve(async (request) => {
     if(guard.status==='conflict')return jsonResponse(request,{error:'This checkout reference belongs to a different order. Check your orders before starting again.',code:'REQUEST_CONFLICT'},409);
     if(guard.status!=='accepted')return jsonResponse(request,{error:'Unable to start this order. Please retry.'},503);
     leaseId=guard.leaseId;
-    const location = await parseDeliveryLocation(body?.deliveryLocation);
     const { data: priced, error: pricingError } = await supabase.rpc('price_menu_cart', { p_lines: cart });
     if (pricingError) throw new Error(pricingError.message);
     const items = priced as { productId: string; name: string; optionLabel: string; unitPrice: number; quantity: number; lineTotal: number }[];
     const subtotal = items.reduce((total, item) => total + item.lineTotal, 0);
     if (!Number.isSafeInteger(subtotal) || subtotal > 2_000_000) throw new Error("Order total is too high. Please review your cart.");
     if(body.reviewedSubtotal!=null && (!Number.isSafeInteger(body.reviewedSubtotal)||body.reviewedSubtotal!==subtotal))return jsonResponse(request,{error:'Menu prices changed. Review your refreshed cart total and send the order again.',code:'MENU_PRICE_CHANGED'},409);
-    const distanceKm = await calculateRoadDistanceKm(location);
+    const { data: restaurantSettings, error: settingsError } = await supabase.from('restaurant_settings')
+      .select('minimum_order_amount,delivery_radius_km').eq('id', true).single();
+    const minimumAmount = restaurantSettings?.minimum_order_amount;
+    if (settingsError || !Number.isSafeInteger(minimumAmount) || minimumAmount < 0) {
+      return jsonResponse(request, { error: 'Restaurant settings are unavailable. Please try again shortly.' }, 503);
+    }
+    if (subtotal < minimumAmount) return jsonResponse(request, {
+      error: `Minimum food order is Rs. ${minimumAmount.toLocaleString('en-PK')} (excluding delivery). Please add more items.`,
+      code: 'MINIMUM_ORDER_NOT_MET', minimumOrderAmount: minimumAmount,
+    }, 422);
+    const location = await parseDeliveryLocation(body?.deliveryLocation);
+    const { distanceKm } = await protectedDeliveryDistance(supabase, location, restaurantSettings.delivery_radius_km);
     const {data:deliveryCharge,error:rateError}=await supabase.rpc('delivery_charge_for_distance',{km:distanceKm});
     if(rateError || !Number.isInteger(deliveryCharge))throw new Error('Delivery rates are unavailable. Please try again.');
     if(body.deliveryCharge !== deliveryCharge)return jsonResponse(request,{error:'Delivery charge changed. Refresh your delivery charge and review the total before sending.',code:'DELIVERY_RATE_CHANGED'},409);
@@ -82,6 +94,8 @@ Deno.serve(async (request) => {
         if(existing)return jsonResponse(request,{orderId:existing.id,createdAt:existing.created_at,subtotal:existing.subtotal,replayed:true});
       }
       if(insertError?.code==='P0002')return jsonResponse(request,{error:'Delivery rates changed. Refresh the delivery charge before ordering.',code:'DELIVERY_RATE_CHANGED'},409);
+      if(insertError?.code==='PFC01')return jsonResponse(request,{error:insertError.message,code:'MINIMUM_ORDER_NOT_MET'},422);
+      if(insertError?.code==='PFC02')return jsonResponse(request,{error:'Restaurant settings are unavailable. Please try again shortly.'},503);
       if(insertError?.code==='P0001')return jsonResponse(request,{error:'Ordering is currently closed. Please try again when ordering resumes.'},409);
       console.error("Order insert failed");
       return jsonResponse(request, { error: "We couldn't save your order. Please try again." }, 500);
@@ -132,6 +146,8 @@ Deno.serve(async (request) => {
   } catch (error) {
     if(savedOrder)return jsonResponse(request,savedOrder);
     if(insertStarted)return jsonResponse(request,{error:'We could not confirm the result. Please retry this same checkout; it will not create a duplicate.'},503);
+    if(error instanceof DeliverySecurityError)return deliverySecurityResponse(request,error);
+    if(error instanceof DeliveryRoutingError)return jsonResponse(request,{error:error.message},error.status);
     const message = error instanceof Error ? error.message : "Unable to place this order.";
     return jsonResponse(request, { error: message }, 400);
   } finally {

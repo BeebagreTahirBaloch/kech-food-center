@@ -6,7 +6,7 @@ function browserToken(){
  try{const saved=localStorage.getItem('kfc_push_owner');if(/^[a-f0-9-]{36}$/i.test(saved))return saved;}catch{}
  memoryToken ||= crypto.randomUUID();try{localStorage.setItem('kfc_push_owner',memoryToken);}catch{}return memoryToken;
 }
-export default function PushAlerts({orderId,owner=false,onEnabledChange}){
+export default function PushAlerts({orderId,owner=false,onEnabledChange,embedded=false}){
  const [enabled,setEnabled]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
  useEffect(()=>{onEnabledChange?.(enabled);},[enabled,onEnabledChange]);
  const client=owner?adminSupabase:supabase;
@@ -37,7 +37,8 @@ export default function PushAlerts({orderId,owner=false,onEnabledChange}){
    setEnabled(await saved(sub,'save'));setMessage('Alerts on. Delivery depends on your device and internet connection.');
   }catch(e){setMessage(e.message);}finally{setBusy(false);}
  }
- return <section className="push-alert-card"><h2>{owner?'Owner notifications':'Updates when you leave this page'}</h2>
+ const Heading=embedded?'h3':'h2';
+ return <section className={`push-alert-card${embedded?' push-alert-embedded':''}`}><Heading>{owner?'Owner notifications':'Updates when you leave this page'}</Heading>
   <p>{enabled?'Alerts on':typeof Notification!=='undefined'&&Notification.permission==='denied'?'Blocked in browser settings':'Alerts off'}</p>
   <button disabled={busy} onClick={toggle}>{busy?'Saving…':enabled?'Turn off alerts':owner?'Enable owner alerts':'Notify me about this order'}</button>
   {owner&&enabled&&<button disabled={busy} onClick={async()=>{try{const {error}=await client.functions.invoke('order-notifications',{body:{action:'test-owner'}});if(error)throw error;setMessage('Test alert sent.');}catch{setMessage('Test failed. Check your notification setup.');}}}>Send test alert</button>}

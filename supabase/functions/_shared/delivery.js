@@ -14,6 +14,17 @@ export class DeliveryRoutingError extends Error {
     this.status = status;
   }
 }
+export function straightLineDistance(origin, destination) {
+  for (const point of [origin, destination]) {
+    if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng) || Math.abs(point.lat)>90 || Math.abs(point.lng)>180) throw new DeliveryRoutingError('Restaurant or delivery coordinates are not configured.', 503);
+  }
+  const rad = degrees => degrees * Math.PI / 180;
+  const a = Math.sin(rad(destination.lat-origin.lat)/2)**2 + Math.cos(rad(origin.lat))*Math.cos(rad(destination.lat))*Math.sin(rad(destination.lng-origin.lng)/2)**2;
+  return 2*6371*Math.asin(Math.sqrt(Math.min(1,a)));
+}
+export function approximateDeliveryDistance(origin, destination) {
+  return { distanceKm: Math.round(straightLineDistance(origin, destination)*1.3*10)/10, distanceMethod: 'haversine' };
+}
 // The API key is supplied only by the Edge Function wrapper in orders.ts.
 // This module is also imported for legacy tier labels by the customer site.
 export async function deliveryDistance(origin, destination, { apiKey = '' } = {}) {
@@ -55,9 +66,7 @@ export async function deliveryDistance(origin, destination, { apiKey = '' } = {}
     else await response.body?.cancel();
   }
   // No retries on quota errors. The returned method makes fallback visible at checkout.
-  const rad = degrees => degrees * Math.PI / 180;
-  const a = Math.sin(rad(destination.lat-origin.lat)/2)**2 + Math.cos(rad(origin.lat))*Math.cos(rad(destination.lat))*Math.sin(rad(destination.lng-origin.lng)/2)**2;
-  return { distanceKm: Math.round(2*6371*Math.asin(Math.sqrt(Math.min(1,a)))*1.3*10)/10, distanceMethod: 'haversine' };
+  return approximateDeliveryDistance(origin, destination);
 }
 export async function roadDistance(origin, destination, options = {}) {
   return (await deliveryDistance(origin, destination, options)).distanceKm;

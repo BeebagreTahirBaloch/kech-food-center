@@ -449,6 +449,14 @@ textarea {
 .confirm-button:hover:not(:disabled) { background: #951919; }
 .confirm-button:disabled { background: #b9aaa4; cursor: not-allowed; }
 .checkout-note { margin-top: 10px; color: #77716a; font-size: 11px; line-height: 1.5; text-align: center; }
+.checkout-minimum-notice { margin:16px 0; padding:14px 16px; border:1px solid #e5e5e5; border-radius:10px; font-size:12px; line-height:1.65; }
+.checkout-minimum-notice strong { display:block; font-size:13px; }
+.checkout-minimum-notice p { margin-top:5px; }
+.checkout-minimum-notice.is-below { background:#fff8ec; border-color:#f1dfb9; color:#785419; }
+.checkout-minimum-notice.is-met { background:#f2faf3; border-color:#d4e6d6; color:#3b6640; }
+.checkout-minimum-notice a { display:inline-block; padding:8px 0 0; color:#aa2323; font-weight:600; text-decoration:none; }
+.checkout-minimum-notice button { margin-top:10px; min-height:44px; padding:8px 12px; background:#fff; border:1px solid #d9c9ae; color:#79551b; border-radius:7px; cursor:pointer; }
+.checkout-settings-status { margin:16px 0; color:#786666; font-size:12px; }
 .checkout-error { margin: 12px 0 0; color: #b21f1f; font-size: 12px; font-weight: 600; }
 .order-success { display: flex; gap: 14px; margin: 20px 0; padding: 18px; border: 1px solid #cde5ce; border-radius: 10px; background: #f1faf1; color: #254b27; }
 .order-success > i { flex: none; font-size: 24px; }

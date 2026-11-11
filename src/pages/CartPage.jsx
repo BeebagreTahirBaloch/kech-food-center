@@ -10,6 +10,7 @@ import Header from "../components/Header.jsx";
 import ActiveOrderBar from "../components/ActiveOrderBar.jsx";
 import { useCart } from "../context/CartContext.jsx";
 import { useMenu } from "../context/MenuContext.jsx";
+import { useRestaurantSettings } from '../context/RestaurantSettingsContext.jsx';
 import { saveOrder } from '../lib/orderHistory.js';
 import { isSupabaseConfigured, supabase } from "../lib/supabase.js";
 
@@ -27,6 +28,9 @@ function formatPrice(value) {
 export default function CartPage({ area, onAreaChange }) {
   const { items, count, subtotal, changeQuantity, removeItem, notice, clear } = useCart();
   const { loading: menuLoading, error: menuError, refresh } = useMenu();
+  const { minimumOrderAmount, loading: settingsLoading, ready: settingsReady, error: settingsError, refresh: refreshSettings } = useRestaurantSettings();
+  const belowMinimum = subtotal < minimumOrderAmount;
+  const minimumRemaining = Math.max(0, minimumOrderAmount - subtotal);
   const [customer, setCustomer] = useState({ name: "", phone: "", address: "", area: area || "" });
   const [locationMode, setLocationMode] = useState("pin");
   const [location, setLocation] = useState(null);
@@ -54,6 +58,8 @@ export default function CartPage({ area, onAreaChange }) {
     if(sending.current)return;
     setError("");
     if(orderingClosed)return setError('Ordering is currently closed. Please try again when ordering resumes.');
+    if (!settingsReady || settingsError) return setError('Please reload restaurant settings before ordering.');
+    if (belowMinimum) return setError(`Minimum food order is ${formatPrice(minimumOrderAmount)}, excluding delivery. Add ${formatPrice(minimumRemaining)} more to order.`);
     if(estimatedTotal == null)return setError('Please calculate your delivery charge before sending the order.');
     if (!items.length) return setError("Add at least one item before placing your order.");
     if (menuLoading || menuError) return setError('Please reload the menu before ordering.');
@@ -80,6 +86,7 @@ export default function CartPage({ area, onAreaChange }) {
           if(response?.retryAfter)details+=` Try again in ${response.retryAfter} seconds.`;
           if(functionError.context?.status===400 || response?.code==='DELIVERY_RATE_CHANGED')clearCheckoutRequest();
           if(response?.code==='MENU_PRICE_CHANGED'){clearCheckoutRequest();await refresh();}
+          if(response?.code==='MINIMUM_ORDER_NOT_MET'){clearCheckoutRequest();await refreshSettings();}
           if(response?.code==='DELIVERY_RATE_CHANGED'){setDeliveryEstimate(null);setRateRefresh(n=>n+1);}
         } catch { /* Keep the SDK message if the response isn't JSON. */ }
         throw new Error(details || "We couldn't send your order. Please try again.");
@@ -155,12 +162,19 @@ export default function CartPage({ area, onAreaChange }) {
               )}
 
               <div className="price-breakdown"><div className="price-row"><span>Items subtotal</span><span>{formatPrice(subtotal)}</span></div></div>
+              {settingsLoading ? <p className="checkout-settings-status" role="status">Checking restaurant settings…</p>
+                : settingsError ? <div className="checkout-minimum-notice is-below" role="alert"><p>{settingsError}</p><button type="button" onClick={refreshSettings}>Retry restaurant settings</button></div>
+                : minimumOrderAmount > 0 && <div className={`checkout-minimum-notice${belowMinimum ? ' is-below' : ' is-met'}`} role="status">
+                  <strong>Minimum food order: {formatPrice(minimumOrderAmount)}</strong>
+                  <p>{belowMinimum ? `Add ${formatPrice(minimumRemaining)} more to place your order.` : 'Your cart meets the minimum order.'} Delivery is charged separately.</p>
+                  {belowMinimum && <Link to="/">Add more items →</Link>}
+                </div>}
               <DeliveryEstimate mode={locationMode} location={location} mapsUrl={googleMapsUrl} subtotal={subtotal} onEstimateChange={setDeliveryEstimate} showTotal={false} refreshKey={rateRefresh} />
               <div className="delivery-charge-note"><i className="ri-information-line" /><span>Delivery charge is calculated using the restaurant’s distance-based rates.</span></div>
               <div className="checkout-estimated-total" aria-live="polite"><div><strong>Total</strong><span>Including delivery</span></div>{estimatedTotal != null ? <strong className="checkout-total-amount">{formatPrice(estimatedTotal)}</strong> : <span className="checkout-estimate-pending">Select location</span>}</div>
               {error && <p className="checkout-error" role="alert">{error}</p>}
-              <button type="submit" className="confirm-button" disabled={submitting || items.length === 0 || orderingClosed || estimatedTotal == null}>
-                {orderingClosed ? 'ORDERING CLOSED' : submitting ? "SENDING ORDER…" : estimatedTotal != null ? `SEND ORDER · ${formatPrice(estimatedTotal)}` : 'SEND ORDER'}
+              <button type="submit" className="confirm-button" disabled={submitting || items.length === 0 || orderingClosed || estimatedTotal == null || !settingsReady || Boolean(settingsError) || belowMinimum || menuLoading || Boolean(menuError)}>
+                {orderingClosed ? 'ORDERING CLOSED' : submitting ? "SENDING ORDER…" : belowMinimum ? `ADD ${formatPrice(minimumRemaining)} MORE` : estimatedTotal != null ? `SEND ORDER · ${formatPrice(estimatedTotal)}` : 'SEND ORDER'}
               </button>
               <p className="checkout-note">Sending your order confirms it. Your delivery charge is fixed. The rider will set the estimated arrival time.</p>
             </div>

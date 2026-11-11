@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /rider
+Disallow: /cart
+Disallow: /orders
+Disallow: /track/
+
+Sitemap: https://kech-food-center.vercel.app/sitemap.xml

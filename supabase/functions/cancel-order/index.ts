@@ -17,7 +17,12 @@ Deno.serve(async request => {
       if(error.code==='42703' || error.code==='PGRST204')return jsonResponse(request,{error:'The cancellation database setup is incomplete. Ask the owner to apply the rider operations migration.',code:'CANCEL_SCHEMA'},500);
       return jsonResponse(request,{error:'The database could not save the cancellation. Please contact the restaurant.',code:'CANCEL_DATABASE'},500);
     }
-    if(!data)return jsonResponse(request,{error:'The rider already accepted or this order is no longer pending.'},409);
+    if(!data) {
+      const {data:existing,error:lookupError}=await db.from('orders').select('id').eq('id',orderId).maybeSingle();
+      if(lookupError)return jsonResponse(request,{error:'Unable to check this order. Please try again.'},503);
+      return existing ? jsonResponse(request,{error:'The rider already accepted or this order is no longer pending.'},409)
+        : jsonResponse(request,{error:'Order not found.'},404);
+    }
     if(data.telegram_chat_id && data.telegram_message_id) {
       try { await telegram('editMessageText',{chat_id:data.telegram_chat_id,message_id:data.telegram_message_id,text:`Order ${data.id} cancelled by customer.`,reply_markup:{inline_keyboard:[]}}); } catch { /* Cancellation is saved even if Telegram is unavailable. */ }
     }

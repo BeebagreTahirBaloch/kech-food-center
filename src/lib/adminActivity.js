@@ -1,10 +1,11 @@
 const entities = {
   menu_items: 'Menu item', item_sizes: 'Item size', categories: 'Category',
-  delivery_rates: 'Delivery rates', ordering_hours: 'Ordering hours',
+  delivery_rates: 'Delivery rates', ordering_hours: 'Ordering hours', restaurant_settings: 'Restaurant settings',
   delivery_settings: 'Delivery settings', riders: 'Rider account', rider_capacity: 'Rider capacity',
 };
 const actions = {INSERT: 'Added', UPDATE: 'Updated', DELETE: 'Deleted'};
 const fields = {
+  minimum_order_amount: 'Minimum order amount', restaurant_phone: 'Restaurant phone number', delivery_radius_km: 'Delivery radius',
   name: 'Name', label: 'Size', category_id: 'Category', base_price: 'Price', price: 'Price',
   is_available: 'Availability', is_deleted: 'Menu visibility', active: 'Rider account',
   enabled: 'Ordering schedule', paused: 'Ordering paused', opens_at: 'Opening time', closes_at: 'Closing time',
@@ -56,13 +57,13 @@ function fieldValue(key, data, categoryName) {
   if (value === null || value === '') return ['Not set'];
   if (key === 'category_id') return [categoryName || 'Category no longer available'];
   if (key === 'opens_at' || key === 'closes_at') return [clockTime(value)];
-  if (key === 'base_price' || key === 'price') return [money(value)];
+  if (key === 'base_price' || key === 'price' || key === 'minimum_order_amount') return [money(value)];
   if (key === 'is_available') return [value ? 'Available' : 'Sold out'];
   if (key === 'is_deleted') return [value ? 'Hidden' : 'Visible'];
   if (key === 'active') return [value ? 'Enabled' : 'Disabled'];
   if (key === 'enabled') return [value ? 'On' : 'Off'];
   if (key === 'paused') return [value ? 'Yes' : 'No'];
-  if (key === 'nearby_order_km') return [`${value} km`];
+  if (key === 'nearby_order_km' || key === 'delivery_radius_km') return [`${value} km`];
   if (key.endsWith('_minutes')) return [`${value} ${Number(value) === 1 ? 'minute' : 'minutes'}`];
   if (key === 'cancel_rate_threshold') return [`${value}%`];
   if (key === 'tiers' && Array.isArray(value)) return value.length ? value.map((tier, index) => {

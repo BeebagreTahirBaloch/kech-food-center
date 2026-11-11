@@ -2,6 +2,8 @@
 
 # Kech Food Center
 
+The owner can now set a **minimum food order amount** (delivery excluded; 0 means no minimum) and the **restaurant phone number** at `/admin/settings`. All restaurant call buttons use the saved number. Follow [restaurant settings setup and SQL review](docs/RESTAURANT_SETTINGS.md): run the new migration, redeploy `create-order`, then publish the frontend. Existing orders keep their totals.
+
 Owner activity now shows the admin's login email and readable Before/After changes. Apply the [owner activity update](docs/OWNER_ACTIVITY.md) to resolve existing records too. No Edge Function deployment or new secrets are needed.
 
 Riders can now select multiple nearby orders together: default 3 active orders, configurable from 1 to 5 by the owner. Follow [multiple-order setup and testing](docs/MULTIPLE_RIDER_ORDERS.md) for the new migration. Each delivery keeps separate customer details, payment, ETA and status controls.

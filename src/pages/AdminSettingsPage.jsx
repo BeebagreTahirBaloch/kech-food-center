@@ -4,6 +4,8 @@ import AdminRiderCapacity from '../components/AdminRiderCapacity.jsx';
 import OrderingHours from '../components/OrderingHours.jsx';
 import AdminDeliveryRates from '../components/AdminDeliveryRates.jsx';
 import PushAlerts from '../components/PushAlerts.jsx';
+import AdminRestaurantSettings from '../components/AdminRestaurantSettings.jsx';
+import AdminDeliveryArea from '../components/AdminDeliveryArea.jsx';
 
 export default function AdminSettingsPage() {
   return <main className="admin-page">
@@ -13,7 +15,9 @@ export default function AdminSettingsPage() {
         <h1>Ordering and delivery settings</h1>
       </div>
     </header>
+    <AdminRestaurantSettings />
     <OrderingHours />
+    <AdminDeliveryArea />
     <AdminDeliveryRates />
     <AdminQueueSettings />
     <AdminRiderCapacity />
