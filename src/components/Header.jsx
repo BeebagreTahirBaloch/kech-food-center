@@ -29,13 +29,13 @@ export default function Header({ count, compactLogo = false }) {
       </nav>
       <div className="bottom-nav">
         <a href={`tel:${restaurantPhone}`} className="bottom-nav-items"><i className="ri-phone-fill" aria-hidden="true" /><span>Call</span></a>
-        <a href="/#menu" className="bottom-nav-items"><i className="ri-restaurant-line" aria-hidden="true" /><span>Menu</span></a>
         <NavLink to="/orders" className="bottom-nav-items"><i className="ri-receipt-line" aria-hidden="true" /><span>Orders</span></NavLink>
+        <a href="/#menu" className="bottom-nav-items"><i className="ri-restaurant-line" aria-hidden="true" /><span>Menu</span></a>
+        {!installed && <NavLink to="/get-app" className="bottom-nav-items"><i className="ri-download-2-line" aria-hidden="true" /><span>Get app</span></NavLink>}
         <Link to="/cart" className="bottom-nav-items">
           <span className="mobile-cart-icon"><i className="ri-shopping-cart-line" /><span className="cart-count2">{count}</span></span>
           <span>My Cart</span>
         </Link>
-        {!installed && <NavLink to="/get-app" className="bottom-nav-items"><i className="ri-download-2-line" aria-hidden="true" /><span>Get app</span></NavLink>}
       </div>
     </>
   );
