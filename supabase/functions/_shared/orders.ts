@@ -11,9 +11,8 @@ export function validateCustomer(value: unknown) {
   const name = typeof customer.name === "string" ? customer.name.trim() : "";
   const phone = typeof customer.phone === "string" ? customer.phone.trim() : "";
   const address = typeof customer.address === "string" ? customer.address.trim() : "";
-  const phoneDigits = phone.replace(/\D/g, "");
   if (name.length < 2 || name.length > 80) throw new Error("Enter your name (2 to 80 characters).");
-  if (phone.length > 20 || phoneDigits.length < 7 || phoneDigits.length > 15) throw new Error("Enter a valid phone number.");
+  if (!/^03[0-9]{9}$/.test(phone)) throw new Error("Enter an 11-digit phone number starting with 03, for example 03001234567.");
   if (address.length < 5 || address.length > 250) throw new Error("Enter your full delivery address (5 to 250 characters).");
   return { name, phone, address };
 }

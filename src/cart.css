@@ -256,6 +256,7 @@ textarea {
 }
 
 /* BOTTOM NAV */
+.checkout-phone-help { margin: 6px 0 0; color: #75635f; font-size: 11px; line-height: 1.5; }
 .delivery-area-dialog { position: fixed; inset: 0; margin: auto; width: min(420px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 32px 24px 24px; border: 1px solid #eedddd; border-radius: 22px; background: #fff; color: #292323; text-align: center; font-family: inherit; box-shadow: 0 24px 80px #30000030; }
 .delivery-area-dialog::backdrop { background: #28151566; backdrop-filter: blur(4px); }
 .delivery-area-symbol { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: #fff0ee; color: #b91c1c; font-size: 30px; }

@@ -168,6 +168,16 @@ try {
   await page.getByRole('textbox', { name: 'Your name', exact: true }).fill('Test customer');
   await page.getByRole('textbox', { name: 'Phone number', exact: true }).fill('03000000000');
   await page.getByRole('textbox', { name: 'Full address', exact: true }).fill('Test address');
+  assert.equal(await page.getByRole('combobox', { name: 'Delivery area', exact: true }).count(), 0);
+  const customerPhone = page.getByRole('textbox', { name: 'Phone number', exact: true });
+  for (const phone of ['', '0300123456', '02001234567', '03abcdefghi']) {
+    await customerPhone.fill(phone);
+    assert.equal(await customerPhone.evaluate(input => input.checkValidity()), false);
+    await page.getByRole('button', { name: 'SEND ORDER · Rs. 1,600' }).click();
+    assert.equal(orderCalls, 0, 'Invalid phone must not reach create-order');
+  }
+  await customerPhone.fill('03000000000');
+  assert.equal(await customerPhone.evaluate(input => input.checkValidity()), true);
 
   // The owner raises the minimum after this checkout loaded. Keep the cart and
   // refresh the limit when the server refuses, then allow a corrected checkout.

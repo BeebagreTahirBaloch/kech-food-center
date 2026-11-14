@@ -15,8 +15,6 @@ import { useRestaurantSettings } from '../context/RestaurantSettingsContext.jsx'
 import { saveOrder } from '../lib/orderHistory.js';
 import { isSupabaseConfigured, supabase } from "../lib/supabase.js";
 
-const deliveryAreas = ["Absor", "Satellite Town", "Overseas", "B&R Colony", "Turbat Bazar"];
-
 function formatOrderingTime(value) {
   const [hours, minutes] = value.split(':').map(Number);
   return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours >= 12 ? 'PM' : 'AM'}`;
@@ -26,13 +24,13 @@ function formatPrice(value) {
   return `Rs. ${Number(value || 0).toLocaleString("en-PK")}`;
 }
 
-export default function CartPage({ area, onAreaChange }) {
+export default function CartPage() {
   const { items, count, subtotal, changeQuantity, removeItem, notice, clear } = useCart();
   const { loading: menuLoading, error: menuError, refresh } = useMenu();
   const { minimumOrderAmount, loading: settingsLoading, ready: settingsReady, error: settingsError, refresh: refreshSettings } = useRestaurantSettings();
   const belowMinimum = subtotal < minimumOrderAmount;
   const minimumRemaining = Math.max(0, minimumOrderAmount - subtotal);
-  const [customer, setCustomer] = useState({ name: "", phone: "", address: "", area: area || "" });
+  const [customer, setCustomer] = useState({ name: "", phone: "", address: "" });
   const [locationMode, setLocationMode] = useState("pin");
   const [location, setLocation] = useState(null);
   const [googleMapsUrl, setGoogleMapsUrl] = useState("");
@@ -62,13 +60,13 @@ export default function CartPage({ area, onAreaChange }) {
   function updateCustomer(event) {
     const { name, value } = event.target;
     setCustomer((current) => ({ ...current, [name]: value }));
-    if (name === "area") onAreaChange(value);
   }
 
   async function placeOrder(event) {
     event.preventDefault();
     if(sending.current)return;
     setError("");
+    if (!/^03[0-9]{9}$/.test(customer.phone)) return setError('Enter an 11-digit phone number starting with 03, for example 03001234567.');
     if(orderingClosed)return setError('Ordering is currently closed. Please try again when ordering resumes.');
     if (!settingsReady || settingsError) return setError('Please reload restaurant settings before ordering.');
     if (belowMinimum) return setError(`Minimum food order is ${formatPrice(minimumOrderAmount)}, excluding delivery. Add ${formatPrice(minimumRemaining)} more to order.`);
@@ -160,8 +158,8 @@ export default function CartPage({ area, onAreaChange }) {
               {(orderingHours?.enabled || orderingHours?.paused) && <div className="delivery-charge-note ordering-hours-notice" role="status"><span>{orderingHours.paused?'Ordering is temporarily stopped. Please check back later.':`${orderingClosed?'Ordering is closed.':'Orders are open.'} Order daily from ${formatOrderingTime(orderingHours.opensAt)} to ${formatOrderingTime(orderingHours.closesAt)} (Turbat time).`}</span></div>}
               <div className="info-card"><i className="ri-store-2-line" /><div><p className="info-label">FROM</p><p className="info-value">KECH FOOD CENTER · Turbat</p></div></div>
               <label className="checkout-field"><span>Your name</span><input name="name" value={customer.name} onChange={updateCustomer} placeholder="Enter your name" autoComplete="name" required minLength={2} maxLength={80} /></label>
-              <label className="checkout-field"><span>Phone number</span><input type="tel" name="phone" value={customer.phone} onChange={updateCustomer} placeholder="03xx xxxxxxx" autoComplete="tel" required maxLength={20} /></label>
-              <label className="checkout-field"><span>Delivery area</span><select name="area" value={customer.area} onChange={updateCustomer}><option value="">Select your area</option>{deliveryAreas.map((deliveryArea) => <option key={deliveryArea}>{deliveryArea}</option>)}</select></label>
+              <label className="checkout-field"><span>Phone number</span><input type="tel" inputMode="numeric" name="phone" value={customer.phone} onChange={updateCustomer} placeholder="03001234567" autoComplete="tel-national" required minLength={11} maxLength={11} pattern="03[0-9]{9}" title="Enter exactly 11 digits starting with 03, for example 03001234567." aria-describedby="checkout-phone-help" /></label>
+              <p id="checkout-phone-help" className="checkout-phone-help">11 digits, starting with 03. No spaces or country code.</p>
               <label className="checkout-field"><span>Full address</span><textarea name="address" value={customer.address} onChange={updateCustomer} placeholder="House, street, and nearby landmark" required minLength={5} maxLength={250} rows={3} /></label>
 
               <div ref={locationSelector} tabIndex={-1}>

@@ -68,7 +68,7 @@ export default function App() {
         <Route path="/admin/orders" element={<AdminPage><AdminOrdersPage /></AdminPage>} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/" element={<MenuPage area={area} onAreaChange={setArea} />} />
-        <Route path="/cart" element={<CartPage area={area} onAreaChange={setArea} />} />
+        <Route path="/cart" element={<CartPage />} />
         <Route path="/track/:id" element={<TrackPage area={area} onAreaChange={setArea} />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
