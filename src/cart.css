@@ -256,6 +256,17 @@ textarea {
 }
 
 /* BOTTOM NAV */
+.delivery-area-dialog { position: fixed; inset: 0; margin: auto; width: min(420px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 32px 24px 24px; border: 1px solid #eedddd; border-radius: 22px; background: #fff; color: #292323; text-align: center; font-family: inherit; box-shadow: 0 24px 80px #30000030; }
+.delivery-area-dialog::backdrop { background: #28151566; backdrop-filter: blur(4px); }
+.delivery-area-symbol { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: #fff0ee; color: #b91c1c; font-size: 30px; }
+.delivery-area-dialog h2 { margin: 0 0 12px; font-size: 22px; line-height: 1.3; }
+.delivery-area-dialog p { margin: 0 0 24px; color: #75635f; font-size: 14px; line-height: 1.8; }
+.delivery-area-dialog strong { color: #392c29; font-weight: 600; }
+.delivery-area-dialog button { font: inherit; cursor: pointer; min-height: 44px; }
+.delivery-area-dialog .delivery-area-close { position: absolute; top: 6px; right: 6px; width: 44px; border: 0; background: transparent; color: #75635f; font-size: 26px; }
+.delivery-area-dialog .delivery-area-choose { width: 100%; padding: 13px 12px; border: 0; border-radius: 12px; background: #b91c1c; color: #fff; font-size: 14px; font-weight: 600; }
+.delivery-area-dialog button:focus-visible { outline: 3px solid #c34c4c; outline-offset: 3px; }
+
 .bottom-nav {
     width: 100%;
     background: #fff;

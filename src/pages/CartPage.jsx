@@ -1,6 +1,7 @@
 import RidersBusyNotice from '../components/RidersBusyNotice.jsx';
 import {checkoutRequest,clearCheckoutRequest} from '../lib/checkoutRequest.js';
 import DeliveryEstimate from '../components/DeliveryEstimate.jsx';
+import DeliveryAreaDialog from '../components/DeliveryAreaDialog.jsx';
 import useOrderingHours from '../hooks/useOrderingHours.js';
 import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -42,10 +43,21 @@ export default function CartPage({ area, onAreaChange }) {
   const estimatedTotal = estimatedCharge != null ? subtotal + estimatedCharge : null;
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [deliveryAreaMessage, setDeliveryAreaMessage] = useState('');
+  const locationSelector = useRef(null);
   const navigate = useNavigate();
   const sending=useRef(false);
   const orderingHours = useOrderingHours();
   const orderingClosed = orderingHours?.isOpen === false;
+
+  function chooseAnotherLocation() {
+    setDeliveryAreaMessage('');
+    requestAnimationFrame(() => {
+      const selector = locationSelector.current;
+      selector?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (selector?.querySelector('input[type="url"], .leaflet-container') || selector)?.focus({ preventScroll: true });
+    });
+  }
 
   function updateCustomer(event) {
     const { name, value } = event.target;
@@ -88,6 +100,9 @@ export default function CartPage({ area, onAreaChange }) {
           if(response?.code==='MENU_PRICE_CHANGED'){clearCheckoutRequest();await refresh();}
           if(response?.code==='MINIMUM_ORDER_NOT_MET'){clearCheckoutRequest();await refreshSettings();}
           if(response?.code==='DELIVERY_RATE_CHANGED'){setDeliveryEstimate(null);setRateRefresh(n=>n+1);}
+          if(response?.code==='OUTSIDE_SERVICE_AREA'){
+            clearCheckoutRequest();setDeliveryEstimate(null);setDeliveryAreaMessage(details);
+          }
         } catch { /* Keep the SDK message if the response isn't JSON. */ }
         throw new Error(details || "We couldn't send your order. Please try again.");
       }
@@ -149,6 +164,7 @@ export default function CartPage({ area, onAreaChange }) {
               <label className="checkout-field"><span>Delivery area</span><select name="area" value={customer.area} onChange={updateCustomer}><option value="">Select your area</option>{deliveryAreas.map((deliveryArea) => <option key={deliveryArea}>{deliveryArea}</option>)}</select></label>
               <label className="checkout-field"><span>Full address</span><textarea name="address" value={customer.address} onChange={updateCustomer} placeholder="House, street, and nearby landmark" required minLength={5} maxLength={250} rows={3} /></label>
 
+              <div ref={locationSelector} tabIndex={-1}>
               <fieldset className="location-choice">
                 <legend>Choose your delivery location</legend>
                 <label><input type="radio" name="location-mode" value="pin" checked={locationMode === "pin"} onChange={() => setLocationMode("pin")} /><span>Drop a pin</span></label>
@@ -160,6 +176,7 @@ export default function CartPage({ area, onAreaChange }) {
               ) : (
                 <label className="checkout-field maps-link-field"><span>Google Maps link</span><input type="url" value={googleMapsUrl} onChange={(event) => setGoogleMapsUrl(event.target.value)} placeholder="https://maps.app.goo.gl/..." required /></label>
               )}
+              </div>
 
               {settingsLoading ? <p className="checkout-settings-status" role="status">Checking restaurant settings…</p>
                 : settingsError ? <div className="checkout-minimum-notice is-below" role="alert"><p>{settingsError}</p><button type="button" onClick={refreshSettings}>Retry restaurant settings</button></div>
@@ -174,7 +191,7 @@ export default function CartPage({ area, onAreaChange }) {
                   </div>}
                   <div className="minimum-notice-footer"><span>Excludes delivery</span>{belowMinimum && <Link to="/">Browse menu <i className="ri-arrow-right-line" aria-hidden="true" /></Link>}</div>
                 </div>}
-              <DeliveryEstimate mode={locationMode} location={location} mapsUrl={googleMapsUrl} subtotal={subtotal} onEstimateChange={setDeliveryEstimate} showTotal={false} refreshKey={rateRefresh} />
+              <DeliveryEstimate mode={locationMode} location={location} mapsUrl={googleMapsUrl} subtotal={subtotal} onEstimateChange={setDeliveryEstimate} onOutsideArea={setDeliveryAreaMessage} showTotal={false} refreshKey={rateRefresh} />
               <div className="delivery-charge-note"><i className="ri-information-line" /><span>Delivery charge is calculated using the restaurant’s distance-based rates.</span></div>
               <div className="checkout-items-summary" aria-label="Items subtotal">
                 <div className="items-summary-heading"><span>Items subtotal</span><span className="items-summary-count">{count} {count === 1 ? 'item' : 'items'}</span></div>
@@ -191,6 +208,7 @@ export default function CartPage({ area, onAreaChange }) {
         </section>
       </main>
       <Footer />
+      <DeliveryAreaDialog message={deliveryAreaMessage} onClose={chooseAnotherLocation} />
     </>
   );
 }

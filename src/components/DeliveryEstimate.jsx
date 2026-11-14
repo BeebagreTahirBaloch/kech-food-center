@@ -1,12 +1,12 @@
 import {useEffect,useState} from 'react';
 import {supabase} from '../lib/supabase.js';
-export default function DeliveryEstimate({mode,location,mapsUrl,onEstimateChange,refreshKey=0}){
+export default function DeliveryEstimate({mode,location,mapsUrl,onEstimateChange,onOutsideArea,refreshKey=0}){
  const [result,setResult]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState(''),[retry,setRetry]=useState(0);
  const [rates,setRates]=useState(null);
  useEffect(()=>{let active=true;supabase?.from('delivery_rates').select('tiers').eq('id',true).single().then(({data,error})=>{if(active&&!error)setRates(data.tiers);});return()=>{active=false;};},[]);
  const key=mode==='pin'?JSON.stringify(location):mapsUrl.trim();
  useEffect(()=>{let active=true;setResult(null);setError('');setLoading(Boolean(key&&key!=='null'));if(!key||key==='null')return;
- const timer=setTimeout(async()=>{try{const {data,error}=await supabase.functions.invoke('estimate-delivery',{body:{deliveryLocation:mode==='pin'?JSON.parse(key):{googleMapsUrl:key}}});if(error){let message='Could not calculate delivery. Check your location and try again.';try{const body=await error.context?.clone()?.json();if(typeof body?.error==='string')message=body.error;}catch{}throw Error(message);}if(!Number.isInteger(data?.deliveryCharge))throw Error('Could not calculate delivery. Please try again.');if(active)setResult({key,mode,charge:data.deliveryCharge,distanceKm:data.distanceKm,distanceMethod:data.distanceMethod});}catch(e){if(active)setError(e.message);}finally{if(active)setLoading(false);}},500);return()=>{active=false;clearTimeout(timer);};},[mode,key,retry,refreshKey]);
+ const timer=setTimeout(async()=>{try{const {data,error}=await supabase.functions.invoke('estimate-delivery',{body:{deliveryLocation:mode==='pin'?JSON.parse(key):{googleMapsUrl:key}}});if(error){let message='Could not calculate delivery. Check your location and try again.';try{const body=await error.context?.clone()?.json();if(typeof body?.error==='string')message=body.error;if(active&&body?.code==='OUTSIDE_SERVICE_AREA')onOutsideArea?.(message);}catch{}throw Error(message);}if(!Number.isInteger(data?.deliveryCharge))throw Error('Could not calculate delivery. Please try again.');if(active)setResult({key,mode,charge:data.deliveryCharge,distanceKm:data.distanceKm,distanceMethod:data.distanceMethod});}catch(e){if(active)setError(e.message);}finally{if(active)setLoading(false);}},500);return()=>{active=false;clearTimeout(timer);};},[mode,key,retry,refreshKey,onOutsideArea]);
  const current=result?.key===key&&result?.mode===mode?result:null;
  const charge=current?.charge??null;
  useEffect(()=>{onEstimateChange?.({mode,key,charge});},[mode,key,charge,onEstimateChange]);

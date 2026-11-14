@@ -140,6 +140,17 @@ try {
   outsideArea = true;
   await page.getByRole('button', { name: 'Refresh delivery charge' }).click();
   await page.getByText('This location is outside our 20 km delivery area. Please choose a closer location.').waitFor();
+  const areaDialog = page.getByRole('dialog', { name: 'Outside our delivery area' });
+  await areaDialog.waitFor();
+  assert.ok(await areaDialog.getByText('20 km of Kech Food Center', { exact: true }).isVisible());
+  await page.screenshot({ path: '.test-results/delivery-area-popup-mobile.png' });
+  await areaDialog.getByRole('button', { name: 'Choose another location' }).click();
+  await areaDialog.waitFor({ state: 'detached' });
+  assert.equal(await page.getByRole('textbox', { name: 'Google Maps link' }).evaluate(el => el === document.activeElement), true);
+  await page.getByRole('button', { name: 'Refresh delivery charge' }).click();
+  await areaDialog.waitFor();
+  await page.keyboard.press('Escape');
+  await areaDialog.waitFor({ state: 'detached' });
   assert.equal(orderCalls, 0);
   outsideArea = false;
   await page.getByRole('button', { name: 'Refresh delivery charge' }).click();
