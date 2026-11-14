@@ -161,16 +161,25 @@ export default function CartPage({ area, onAreaChange }) {
                 <label className="checkout-field maps-link-field"><span>Google Maps link</span><input type="url" value={googleMapsUrl} onChange={(event) => setGoogleMapsUrl(event.target.value)} placeholder="https://maps.app.goo.gl/..." required /></label>
               )}
 
-              <div className="price-breakdown"><div className="price-row"><span>Items subtotal</span><span>{formatPrice(subtotal)}</span></div></div>
               {settingsLoading ? <p className="checkout-settings-status" role="status">Checking restaurant settings…</p>
                 : settingsError ? <div className="checkout-minimum-notice is-below" role="alert"><p>{settingsError}</p><button type="button" onClick={refreshSettings}>Retry restaurant settings</button></div>
                 : minimumOrderAmount > 0 && <div className={`checkout-minimum-notice${belowMinimum ? ' is-below' : ' is-met'}`} role="status">
-                  <strong>Minimum food order: {formatPrice(minimumOrderAmount)}</strong>
-                  <p>{belowMinimum ? `Add ${formatPrice(minimumRemaining)} more to place your order.` : 'Your cart meets the minimum order.'} Delivery is charged separately.</p>
-                  {belowMinimum && <Link to="/">Add more items →</Link>}
+                  <div className="minimum-notice-heading">
+                    <span className="minimum-notice-icon" aria-hidden="true"><i className={belowMinimum ? 'ri-shopping-bag-3-line' : 'ri-check-line'} /></span>
+                    <div><strong>{belowMinimum ? `Add ${formatPrice(minimumRemaining)} more` : 'Your cart meets the minimum order.'}</strong>
+                      <span className="minimum-notice-target">Minimum food order: {formatPrice(minimumOrderAmount)}</span></div>
+                  </div>
+                  {belowMinimum && <div className="minimum-order-progress" role="progressbar" aria-label="Food subtotal toward minimum order" aria-valuemin={0} aria-valuemax={minimumOrderAmount} aria-valuenow={Math.max(0, subtotal)} aria-valuetext={`${formatPrice(subtotal)} of ${formatPrice(minimumOrderAmount)}`}>
+                    <span style={{ width: `${Math.min(100, Math.max(0, subtotal / minimumOrderAmount * 100))}%` }} />
+                  </div>}
+                  <div className="minimum-notice-footer"><span>Excludes delivery</span>{belowMinimum && <Link to="/">Browse menu <i className="ri-arrow-right-line" aria-hidden="true" /></Link>}</div>
                 </div>}
               <DeliveryEstimate mode={locationMode} location={location} mapsUrl={googleMapsUrl} subtotal={subtotal} onEstimateChange={setDeliveryEstimate} showTotal={false} refreshKey={rateRefresh} />
               <div className="delivery-charge-note"><i className="ri-information-line" /><span>Delivery charge is calculated using the restaurant’s distance-based rates.</span></div>
+              <div className="checkout-items-summary" aria-label="Items subtotal">
+                <div className="items-summary-heading"><span>Items subtotal</span><span className="items-summary-count">{count} {count === 1 ? 'item' : 'items'}</span></div>
+                <div className="items-summary-value"><strong>{formatPrice(subtotal)}</strong><span>Before delivery</span></div>
+              </div>
               <div className="checkout-estimated-total" aria-live="polite"><div><strong>Total</strong><span>Including delivery</span></div>{estimatedTotal != null ? <strong className="checkout-total-amount">{formatPrice(estimatedTotal)}</strong> : <span className="checkout-estimate-pending">Select location</span>}</div>
               {error && <p className="checkout-error" role="alert">{error}</p>}
               <button type="submit" className="confirm-button" disabled={submitting || items.length === 0 || orderingClosed || estimatedTotal == null || !settingsReady || Boolean(settingsError) || belowMinimum || menuLoading || Boolean(menuError)}>

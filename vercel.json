@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    {"source":"/get-app","destination":"/index.html"},
     {"source":"/cart","destination":"/index.html"},
     {"source":"/orders","destination":"/index.html"},
     {"source":"/track/:id","destination":"/index.html"},

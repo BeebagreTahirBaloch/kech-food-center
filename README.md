@@ -2,6 +2,12 @@
 
 # Kech Food Center
 
+Customers can choose **Get the app** to open `/get-app`, install when their browser supports it, or follow Android/iPhone instructions. See [customer app installation](docs/GET_THE_APP.md). This is a frontend-only update; no SQL or secrets are required.
+
+The homepage hero and welcome-popup images can be changed in **Admin → Settings and alerts → Website images**. See [website image setup](docs/WEBSITE_IMAGES.md) for the new migration, upload instructions and policy review. After this frontend update, future image changes need only an upload and Save.
+
+Security report follow-up: **Admin → Settings and alerts → Delivery service area** controls the maximum delivery radius. Delivery checks and new orders enforce it on the server, with routing request limits. Follow [security update setup and testing](docs/SECURITY_HARDENING_20261111.md) for the two new SQL files, four function deployments, frontend deployment and the full SQL review. The initial radius is 15 km; set your actual service area before accepting orders.
+
 The owner can now set a **minimum food order amount** (delivery excluded; 0 means no minimum) and the **restaurant phone number** at `/admin/settings`. All restaurant call buttons use the saved number. Follow [restaurant settings setup and SQL review](docs/RESTAURANT_SETTINGS.md): run the new migration, redeploy `create-order`, then publish the frontend. Existing orders keep their totals.
 
 Owner activity now shows the admin's login email and readable Before/After changes. Apply the [owner activity update](docs/OWNER_ACTIVITY.md) to resolve existing records too. No Edge Function deployment or new secrets are needed.

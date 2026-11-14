@@ -7,6 +7,8 @@ import Header from "../components/Header.jsx";
 import MenuLoadingScreen from "../components/MenuLoadingScreen.jsx";
 import ProductModal from "../components/ProductModal.jsx";
 import { useCart } from "../context/CartContext.jsx";
+import { useWebsiteImages } from '../lib/useWebsiteImages.js';
+import { fallbackWebsiteImage } from '../lib/websiteImages.js';
 
 
 function formatPrice(value) {
@@ -19,6 +21,7 @@ function imageUrl(image = "") {
 
 export default function MenuPage({ area, onAreaChange }) {
   const { count, addItem } = useCart();
+  const { images, ready: imagesReady } = useWebsiteImages();
   const { catalog, menuSections, loading, error, ready, refresh } = useMenu();
   const [search,setSearch]=useState('');
   const [selectedItem, setSelectedItem] = useState(null);
@@ -80,7 +83,7 @@ export default function MenuPage({ area, onAreaChange }) {
   }, [catalog,search]);
 
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !imagesReady) return;
     let timer;
     try {
       if (!sessionStorage.getItem("kech-ad-seen")) {
@@ -88,7 +91,7 @@ export default function MenuPage({ area, onAreaChange }) {
       }
     } catch { /* Storage may be disabled by the browser. */ }
     return () => window.clearTimeout(timer);
-  }, [ready]);
+  }, [ready, imagesReady]);
 
   function closeAd() {
     setShowAd(false);
@@ -108,7 +111,7 @@ export default function MenuPage({ area, onAreaChange }) {
       <div className="nav3" ref={specialRef}><h3>Today's Special: Family Bucket for only RS.1599!</h3></div>
       <main>
         <div className="hero-wrap">
-          <img className="hero-img" src="/images/kfc hero section image.png" alt="Kech Food Center meals" />
+          <img className="hero-img" src={images.hero} alt="Kech Food Center meals" onError={e => fallbackWebsiteImage(e, 'hero')} />
         </div>
         <div className="menu-search"><label htmlFor="menu-search">Find your food</label><input id="menu-search" type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search pizza, burger, drinks…"/>{search&&<button onClick={()=>setSearch('')}>Clear search</button>}{search&&!groupedItems.size&&<p role="status">No food matches your search.</p>}</div>
         <section id="menu" className="menu-container" aria-label="Our menu">
@@ -147,7 +150,7 @@ export default function MenuPage({ area, onAreaChange }) {
       <Footer />
       <div className="floating-cart"><Link to="/cart"><i className="ri-shopping-cart-line" /> Cart <span>{count}</span></Link></div>
       {selectedItem && <ProductModal key={selectedItem.id} item={selectedItem} onClose={() => setSelectedItem(null)} onAdd={(item, option, quantity) => { addItem(item, option, quantity); setSelectedItem(null); }} />}
-      {showAd && <Advertisement onClose={closeAd} />}
+      {showAd && <Advertisement image={images.popup} onClose={closeAd} />}
     </div>
     {!ready && <MenuLoadingScreen loading={loading} onRetry={refresh} />}
     </>

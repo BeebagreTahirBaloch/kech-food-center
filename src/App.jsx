@@ -11,6 +11,8 @@ import TrackPage from "./pages/TrackPage.jsx";
 import AdminPage from "./pages/AdminPage.jsx";
 import AdminOrdersPage from "./pages/AdminOrdersPage.jsx";
 import OrdersPage from "./pages/OrdersPage.jsx";
+import InstallAppPage from './pages/InstallAppPage.jsx';
+import { AppInstallProvider } from './context/AppInstallContext.jsx';
 
 function readDeliveryArea() {
   try { return localStorage.getItem("deliveryArea") || ""; } catch { return ""; }
@@ -19,6 +21,16 @@ function readDeliveryArea() {
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => { window.scrollTo(0, 0); }, [pathname]);
+  return null;
+}
+
+function AppManifest() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const role = /^\/rider(?:\/|$)/.test(pathname) ? 'rider'
+      : /^\/admin(?:\/|$)/.test(pathname) ? 'owner' : 'customer';
+    document.getElementById('app-manifest')?.setAttribute('href', `/${role}.webmanifest`);
+  }, [pathname]);
   return null;
 }
 
@@ -43,9 +55,11 @@ export default function App() {
   }, [area]);
 
   return (
-    <>
+    <AppInstallProvider>
       <ScrollToTop />
+      <AppManifest />
       <Routes>
+        <Route path="/get-app" element={<InstallAppPage />} />
         <Route path="/rider/*" element={<RiderPage />} />
         <Route path="/admin/riders" element={<AdminPage><AdminRidersPage /></AdminPage>} />
         <Route path="/admin/history" element={<AdminPage><AdminHistoryPage /></AdminPage>} />
@@ -58,6 +72,6 @@ export default function App() {
         <Route path="/track/:id" element={<TrackPage area={area} onAreaChange={setArea} />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </>
+    </AppInstallProvider>
   );
 }

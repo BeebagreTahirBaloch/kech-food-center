@@ -21,9 +21,9 @@ export default function PushAlerts({orderId,owner=false,onEnabledChange,embedded
   const json=sub.toJSON();return (await invoke({orderId,action,ownerToken:browserToken(),endpoint:sub.endpoint,p256dh:json.keys?.p256dh,auth:json.keys?.auth})).enabled;
  }
  useEffect(()=>{
-  let active=true;const manifest=document.createElement('link');manifest.rel='manifest';manifest.href=owner?'/owner.webmanifest':'/customer.webmanifest';document.head.appendChild(manifest);
+  let active=true;
   if('serviceWorker' in navigator&&'PushManager' in window)registration().then(async reg=>{const sub=await reg.pushManager.getSubscription();if(sub){const found=await saved(sub,'status');if(active)setEnabled(found);}}).catch(()=>{});
-  return()=>{active=false;manifest.remove();};
+  return()=>{active=false;};
  },[orderId,owner]);
  async function toggle(){
   setBusy(true);setMessage('');try{
@@ -43,6 +43,7 @@ export default function PushAlerts({orderId,owner=false,onEnabledChange,embedded
   <button disabled={busy} onClick={toggle}>{busy?'Saving…':enabled?'Turn off alerts':owner?'Enable owner alerts':'Notify me about this order'}</button>
   {owner&&enabled&&<button disabled={busy} onClick={async()=>{try{const {error}=await client.functions.invoke('order-notifications',{body:{action:'test-owner'}});if(error)throw error;setMessage('Test alert sent.');}catch{setMessage('Test failed. Check your notification setup.');}}}>Send test alert</button>}
   {message&&<p role="status">{message}</p>}
+  {!('PushManager' in window)&&<p>On iPhone, open this site in Safari, tap Share → Add to Home Screen, then open the installed app to enable alerts.</p>}
   <details><summary>Phone setup and privacy</summary><p>Android: Chrome menu → Add to Home screen → Install, then allow notifications. iPhone: Safari → Share → Add to Home Screen, open the installed app, then enable alerts.</p><p>Notifications contain no customer contact details. You can turn them off here. Customer subscriptions expire after seven days; completed orders receive no further status updates.</p></details>
  </section>;
 }

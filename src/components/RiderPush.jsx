@@ -7,10 +7,9 @@ export default function RiderPush(){
  const blocked=typeof Notification!=='undefined' && Notification.permission==='denied';
  useEffect(()=>{
   let active=true;
-  const manifest=document.createElement('link');manifest.rel='manifest';manifest.href='/rider.webmanifest';document.head.appendChild(manifest);
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/rider-sw.js',{scope:'/rider'}).then(async reg=>{if(active){setRegistration(reg);const sub=await reg.pushManager?.getSubscription();if(sub){const {data,error}=await supabase.from('push_subscriptions').select('id').eq('endpoint',sub.endpoint).maybeSingle();if(active)setEnabled(!error&&Boolean(data));}}}).catch(()=>{if(active)setMessage('Installable alerts are unavailable on this browser.');});
   const prompt=e=>{e.preventDefault();setInstall(e);};window.addEventListener('beforeinstallprompt',prompt);
-  return ()=>{active=false;manifest.remove();window.removeEventListener('beforeinstallprompt',prompt);};
+  return ()=>{active=false;window.removeEventListener('beforeinstallprompt',prompt);};
  },[]);
  async function enable(){setBusy(true);try{
   if(!registration || !('PushManager' in window) || !('Notification' in window))throw Error('Install the app on your home screen or use a browser supporting push.');

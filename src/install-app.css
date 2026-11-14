@@ -1,0 +1,26 @@
+.install-app-page { max-width:720px; margin:0 auto; padding:100px 20px 48px; color:#302725; }
+.install-app-card { padding:36px; text-align:center; background:linear-gradient(150deg,#fff1ef,#fff 65%); border:1px solid #efdddd; border-radius:24px; }
+.install-app-logo { display:block; margin:0 auto 20px; border-radius:22px; box-shadow:0 6px 20px #8b19191a; }
+.install-app-eyebrow { color:#b21f1f; font-size:10px; font-weight:700; letter-spacing:.14em; }
+.install-app-card h1 { font-size:clamp(30px,6vw,44px); line-height:1.15; letter-spacing:-.035em; margin:14px 0; }
+.install-app-intro { max-width:470px; margin:0 auto; font-size:14px; line-height:1.8; color:#786862; }
+.install-app-benefits { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin:22px 0; }
+.install-app-benefits span { padding:6px 10px; border:1px solid #eededa; border-radius:20px; color:#805b52; background:white; font-size:11px; }
+.install-app-button { display:inline-flex; align-items:center; justify-content:center; gap:14px; min-height:50px; width:100%; max-width:350px; padding:12px 20px; border:0; border-radius:12px; background:#b21f1f; color:white; font:600 15px Poppins,sans-serif; text-decoration:none; cursor:pointer; }
+.install-app-button:hover { background:#951919; }
+.install-app-button:disabled { opacity:.6; cursor:wait; }
+.install-app-note { margin:12px 0 0; font-size:11px; line-height:1.7; color:#85726b; }
+.install-app-message,.install-app-installed { margin-top:18px; padding:16px; border-radius:12px; background:#f4f8f3; color:#315e39; font-size:13px; line-height:1.7; }
+.install-app-installed strong { font-size:20px; }.install-app-installed a { display:inline-block; margin-top:12px; color:#315e39; font-weight:600; }
+.install-app-instructions { scroll-margin-top:90px; margin-top:24px; padding:28px; background:white; border:1px solid #e9dfdc; border-radius:20px; }
+.install-app-instructions h2 { font-size:20px; margin:0 0 18px; }
+.install-device-options { display:flex; flex-wrap:wrap; gap:8px; }
+.install-device-options button { padding:10px 13px; min-height:44px; background:#faf6f5; border:1px solid #eadfdb; border-radius:9px; color:#725e56; font:500 12px Poppins,sans-serif; cursor:pointer; }
+.install-device-options button[aria-pressed="true"] { background:#b21f1f; border-color:#b21f1f; color:#fff; }
+.install-app-instructions ol { padding-left:24px; margin:22px 0; }
+.install-app-instructions li { padding-left:6px; margin:14px 0; font-size:14px; line-height:1.75; }
+.install-app-instructions li::marker { color:#b21f1f; font-weight:700; }
+.install-app-help { color:#85716a; font-size:12px; line-height:1.8; margin-top:14px; }
+.install-back-link { display:block; margin-top:24px; text-align:center; color:#a51e1e; font-size:13px; }
+.install-app-page :is(button,a):focus-visible { outline:3px solid #da8b77; outline-offset:4px; }
+@media(max-width:480px) { .install-app-page { padding:84px 12px 28px; }.install-app-card { padding:28px 18px; }.install-app-instructions { padding:22px 18px; } }

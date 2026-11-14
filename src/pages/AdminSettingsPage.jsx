@@ -6,6 +6,7 @@ import AdminDeliveryRates from '../components/AdminDeliveryRates.jsx';
 import PushAlerts from '../components/PushAlerts.jsx';
 import AdminRestaurantSettings from '../components/AdminRestaurantSettings.jsx';
 import AdminDeliveryArea from '../components/AdminDeliveryArea.jsx';
+import AdminWebsiteImages from '../components/AdminWebsiteImages.jsx';
 
 export default function AdminSettingsPage() {
   return <main className="admin-page">
@@ -16,6 +17,7 @@ export default function AdminSettingsPage() {
       </div>
     </header>
     <AdminRestaurantSettings />
+    <AdminWebsiteImages />
     <OrderingHours />
     <AdminDeliveryArea />
     <AdminDeliveryRates />

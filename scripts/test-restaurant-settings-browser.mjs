@@ -13,8 +13,9 @@ const session = {
   refresh_token: 'test-only', expires_at: Math.floor(Date.now() / 1000) + 3600, expires_in: 3600,
   token_type: 'bearer', user: { id: ownerId, email: 'owner@example.test', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {} },
 };
-let settings = { minimum_order_amount: 600, restaurant_phone: '03352053652' };
-let settingsFail = false, writes = 0, orderCalls = 0, status = 'pending', rider = null;
+let settings = { minimum_order_amount: 600, restaurant_phone: '03352053652', delivery_radius_km: 15 };
+let settingsFail = false, radiusFail = false, radiusWrites = 0, adminAllowed = true, outsideArea = false;
+let writes = 0, orderCalls = 0, status = 'pending', rider = null;
 const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
 const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
 await context.routeWebSocket('**/*', ws => ws.close());
@@ -31,13 +32,15 @@ await context.route('**/*', async route => {
   if (path.endsWith('/restaurant_settings')) {
     if (request.method() === 'PATCH') {
       assert.equal(request.headers().authorization, 'Bearer ' + session.access_token);
-      writes++;
-      settings = request.postDataJSON();
+      const changes = request.postDataJSON();
+      if ('delivery_radius_km' in changes) radiusWrites++; else writes++;
+      settings = { ...settings, ...changes };
       return reply(settings);
     }
-    return settingsFail ? reply({ message: 'Test settings unavailable' }, 500) : reply(settings);
+    return settingsFail || (radiusFail && url.searchParams.get('select') === 'delivery_radius_km') ? reply({ message: 'Test settings unavailable' }, 500) : reply(settings);
   }
-  if (path.endsWith('/admins')) return reply([{ user_id: ownerId }]);
+  if (path.endsWith('/admins')) return reply(adminAllowed ? [{ user_id: ownerId }] : []);
+  if (path.endsWith('/logout')) return reply(null);
   if (path.endsWith('/user')) return reply(session.user);
   if (path.endsWith('/categories')) return reply([{ id: 'burgers', name: 'Burgers', sort_order: 0 }]);
   if (path.endsWith('/menu_items')) return reply([{ id: foodId, category_id: 'burgers', name: 'Test Burger', base_price: 500, is_available: true, is_deleted: false, item_sizes: [] }]);
@@ -47,7 +50,9 @@ await context.route('**/*', async route => {
   if (path.endsWith('/delivery_settings')) return reply({ max_active_orders: 3, nearby_order_km: 1, pending_alert_minutes: 10, stalled_alert_minutes: 20 });
   if (path.endsWith('/admin_waiting_orders')) return reply({ count: 0, orders: [], threshold: 10 });
   if (path.endsWith('/rider_availability')) return reply({ allBusy: false, noneOnline: false });
-  if (path.endsWith('/estimate-delivery')) return reply({ deliveryCharge: 600, distanceKm: 3.9, distanceMethod: 'openrouteservice' });
+  if (path.endsWith('/estimate-delivery')) return outsideArea
+    ? reply({ error: 'This location is outside our 20 km delivery area. Please choose a closer location.', code: 'OUTSIDE_SERVICE_AREA' }, 422)
+    : reply({ deliveryCharge: 600, distanceKm: 3.9, distanceMethod: 'openrouteservice' });
   if (path.endsWith('/create-order')) {
     orderCalls++;
     const body = request.postDataJSON();
@@ -64,6 +69,10 @@ await context.route('**/*', async route => {
 const page = await context.newPage(), errors = [];
 page.on('pageerror', error => errors.push(error.message));
 const fits = async () => assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Page fits mobile width');
+const manifest = async role => {
+  assert.equal(await page.locator('link[rel="manifest"]').count(), 1);
+  assert.equal(await page.locator('#app-manifest').getAttribute('href'), `/${role}.webmanifest`);
+};
 const callsUse = async (phone, allowedRider = null) => {
   const hrefs = await page.locator('a[href^="tel:"]').evaluateAll(links => links.map(link => link.getAttribute('href')));
   assert.ok(hrefs.length >= 4);
@@ -82,7 +91,8 @@ try {
   await panel.getByLabel(/^Restaurant phone number/).fill('+92 (300) 123-4567');
   await panel.getByRole('button', { name: 'Save restaurant settings' }).click();
   await panel.getByText('Restaurant settings saved. Existing orders keep their totals.').waitFor();
-  assert.deepEqual(settings, { minimum_order_amount: 1000, restaurant_phone: '+923001234567' });
+  assert.deepEqual(settings, { minimum_order_amount: 1000, restaurant_phone: '+923001234567', delivery_radius_km: 15 });
+  await manifest('owner');
   await fits();
   await mkdir('.test-results', { recursive: true });
   await panel.screenshot({ path: '.test-results/restaurant-settings-mobile.png' });
@@ -92,14 +102,48 @@ try {
   await panel.getByRole('button', { name: 'Save restaurant settings' }).click();
   await panel.getByRole('alert').waitFor();
   assert.equal(writes, 1, 'Invalid phone is not saved');
+  const area = page.getByRole('region', { name: 'Delivery service area' });
+  const radius = area.getByLabel('Maximum delivery radius (km)');
+  await radius.fill('');
+  assert.equal(await radius.isVisible(), true, 'Clearing the field must not unmount the form');
+  await area.getByRole('button', { name: 'Save delivery area' }).click();
+  assert.equal(radiusWrites, 0);
+  await radius.fill('20');
+  await area.getByRole('button', { name: 'Save delivery area' }).click();
+  await area.getByText('Delivery area saved: within 20 km of the restaurant. Existing orders are unchanged.').waitFor();
+  assert.equal(settings.delivery_radius_km, 20);
+  await page.setViewportSize({ width: 320, height: 844 });
+  await fits();
+  await area.screenshot({ path: '.test-results/delivery-area-mobile.png' });
+  await page.reload();
+  await radius.waitFor();
+  assert.equal(await radius.inputValue(), '20');
+  radiusFail = true;
+  await page.reload();
+  await area.getByRole('button', { name: 'Retry delivery area' }).waitFor();
+  radiusFail = false;
+  await area.getByRole('button', { name: 'Retry delivery area' }).click();
+  await radius.waitFor();
+  assert.equal(await radius.inputValue(), '20');
   await page.setViewportSize({ width: 390, height: 844 });
 
   await page.goto(base);
+  await manifest('customer');
   await page.getByRole('link', { name: 'Call us: +923001234567', exact: true }).waitFor();
   await callsUse('+923001234567');
   await page.goto(base + '/cart');
   await page.getByText('Minimum food order: Rs. 1,000', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('progressbar', { name: 'Food subtotal toward minimum order' }).getAttribute('aria-valuenow'), '500');
+  await page.locator('.checkout-minimum-notice').screenshot({ path: '.test-results/minimum-notice-below.png' });
+  await page.locator('.checkout-items-summary').screenshot({ path: '.test-results/items-subtotal-mobile.png' });
   await estimate();
+  outsideArea = true;
+  await page.getByRole('button', { name: 'Refresh delivery charge' }).click();
+  await page.getByText('This location is outside our 20 km delivery area. Please choose a closer location.').waitFor();
+  assert.equal(orderCalls, 0);
+  outsideArea = false;
+  await page.getByRole('button', { name: 'Refresh delivery charge' }).click();
+  await page.getByText('Road distance: 3.9 km', { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'ADD Rs. 500 MORE' }).isDisabled(), true);
   assert.equal(orderCalls, 0);
   await callsUse('+923001234567');
@@ -107,6 +151,8 @@ try {
   await page.locator('.order-details-box').screenshot({ path: '.test-results/minimum-cart-mobile.png' });
   await page.getByRole('button', { name: 'Increase Test Burger', exact: true }).click();
   await page.getByText(/Your cart meets the minimum order/).waitFor();
+  assert.equal(await page.getByRole('progressbar', { name: 'Food subtotal toward minimum order' }).count(), 0);
+  await page.locator('.checkout-minimum-notice').screenshot({ path: '.test-results/minimum-notice-met.png' });
   assert.equal(await page.getByRole('button', { name: 'SEND ORDER · Rs. 1,600' }).isEnabled(), true);
   await page.getByRole('textbox', { name: 'Your name', exact: true }).fill('Test customer');
   await page.getByRole('textbox', { name: 'Phone number', exact: true }).fill('03000000000');
@@ -123,6 +169,7 @@ try {
   await page.getByRole('button', { name: 'Increase Test Burger', exact: true }).click();
   await page.getByRole('button', { name: 'SEND ORDER · Rs. 2,100' }).click();
   await page.waitForURL(base + '/track/' + orderId);
+  await manifest('customer');
   await page.getByRole('link', { name: 'Call restaurant', exact: true }).waitFor();
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('cart'))), []);
   await callsUse('+923001234567');
@@ -155,6 +202,16 @@ try {
   assert.equal(await page.getByRole('button', { name: 'SEND ORDER · Rs. 1,100' }).isEnabled(), true);
   await page.setViewportSize({ width: 320, height: 844 });
   await fits();
+  await page.goto(base + '/rider');
+  await page.getByRole('heading', { name: 'KFC Turbat Rider' }).waitFor();
+  await manifest('rider');
+  adminAllowed = false;
+  await page.goto(base + '/admin/settings');
+  await page.getByText('Not authorized', { exact: true }).waitFor();
+  assert.equal(await page.getByRole('region', { name: 'Delivery service area' }).count(), 0);
+  await manifest('owner');
+  await page.getByRole('link', { name: 'Back to menu' }).click();
+  await manifest('customer');
   assert.deepEqual(errors, []);
-  console.log('PASS: admin save/validation, phone links on every customer page, rider number preserved, minimum before delivery, changed minimum, cart retention, successful checkout, zero minimum and settings recovery');
+  console.log('PASS: admin radius editing/recovery and access, mobile layout, one manifest per role, outside-area checkout error, restaurant phone, minimum amount, cart retention and successful checkout');
 } finally { await browser.close(); }

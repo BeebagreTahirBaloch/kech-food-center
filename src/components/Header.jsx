@@ -1,8 +1,10 @@
 import { Link, NavLink } from "react-router-dom";
 import { useRestaurantSettings } from '../context/RestaurantSettingsContext.jsx';
+import { useAppInstall } from '../context/AppInstallContext.jsx';
 
 export default function Header({ count, compactLogo = false }) {
   const { restaurantPhone } = useRestaurantSettings();
+  const { installed } = useAppInstall();
   return (
     <>
       <nav className={`site-nav${compactLogo ? " compact-logo" : ""}`}>
@@ -15,6 +17,7 @@ export default function Header({ count, compactLogo = false }) {
           <a href="/#menu">MENU</a>
           <a href={`tel:${restaurantPhone}`}>CALL</a>
           <NavLink to="/orders">ORDERS</NavLink>
+          {!installed && <NavLink to="/get-app">GET THE APP</NavLink>}
         </div>
         <div className="nav-icons">
           <div className="nav-icons-cart">
@@ -32,6 +35,7 @@ export default function Header({ count, compactLogo = false }) {
           <span className="mobile-cart-icon"><i className="ri-shopping-cart-line" /><span className="cart-count2">{count}</span></span>
           <span>My Cart</span>
         </Link>
+        {!installed && <NavLink to="/get-app" className="bottom-nav-items"><i className="ri-download-2-line" aria-hidden="true" /><span>Get app</span></NavLink>}
       </div>
     </>
   );

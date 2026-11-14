@@ -19,6 +19,8 @@ Deno.test({name:'create-order protection integration: replay/rate limit skip wor
   if(path.endsWith('/begin_order_request'))return response(mode==='rate_limited'?{status:mode,retryAfter:60}:mode==='in_progress'?{status:mode,retryAfter:3}:mode==='conflict'?{status:mode}:savedOrder?{status:'replay',orderId:savedOrder.id,createdAt:savedOrder.created_at,subtotal:500}:{status:'accepted',leaseId:'11111111-1111-4111-8111-111111111111'});
   if(path.endsWith('/release_order_request'))return response(null);
   if(path.endsWith('/price_menu_cart'))return response([{name:'Test food',unitPrice:500,lineTotal:500,quantity:1}]);
+  if(path.endsWith('/restaurant_settings'))return response({minimum_order_amount:0,delivery_radius_km:15});
+  if(path.endsWith('/reserve_delivery_route'))return response(true);
   if(path.endsWith('/delivery_charge_for_distance')){rateDistances.push(JSON.parse(String(init?.body)).km);return response(100);}
   if(path.endsWith('/claim_push_jobs')){claims++;return response([]);}
   if(path.endsWith('/orders')&&method==='POST'){inserts++;insertPayloads.push(JSON.parse(String(init?.body)));savedOrder={id:'22222222-2222-4222-8222-222222222222',created_at:'2026-11-03T12:00:00Z'};return response(savedOrder,201);}

@@ -55,8 +55,10 @@ export async function protectedDeliveryDistance(db: SupabaseClient, destination:
   const origin = { lat: Number(Deno.env.get('RESTAURANT_LAT') || NaN), lng: Number(Deno.env.get('RESTAURANT_LNG') || NaN) };
   const distance = straightLineDistance(origin, destination);
   if (distance > Number(radius)) throw new DeliverySecurityError(`This location is outside our ${Number(radius)} km delivery area. Please choose a closer location.`, 422, 'OUTSIDE_SERVICE_AREA');
+  const apiKey = (Deno.env.get('OPENROUTESERVICE_API_KEY') || '').trim();
+  if (!apiKey) throw new DeliverySecurityError('Delivery routing is not configured. Please contact the restaurant.', 503, 'DELIVERY_UNAVAILABLE');
   // Reserve budget only after the service-area check, for both public endpoints.
   const { data: allowed, error } = await db.rpc('reserve_delivery_route');
   if (error || typeof allowed !== 'boolean') throw new DeliverySecurityError('Delivery is temporarily unavailable. Please try again shortly.', 503, 'DELIVERY_UNAVAILABLE');
-  return allowed ? deliveryDistance(origin, destination, { apiKey: Deno.env.get('OPENROUTESERVICE_API_KEY') || '' }) : approximateDeliveryDistance(origin, destination);
+  return allowed ? deliveryDistance(origin, destination, { apiKey }) : approximateDeliveryDistance(origin, destination);
 }

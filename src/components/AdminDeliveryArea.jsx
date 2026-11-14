@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { adminSupabase } from '../lib/supabase.js';
 
 export default function AdminDeliveryArea() {
-  const [radius, setRadius] = useState('');
+  const [radius, setRadius] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -36,7 +36,7 @@ export default function AdminDeliveryArea() {
     <p>Choose how far from the restaurant customers can place new orders.</p>
     {error && <p className="restaurant-settings-error" role="alert">{error}</p>}
     {message && <p className="restaurant-settings-success" role="status">{message}</p>}
-    {loading ? <p role="status">Loading delivery area…</p> : radius ? <form onSubmit={save}>
+    {loading ? <p role="status">Loading delivery area…</p> : radius !== null ? <form onSubmit={save}>
       <div className="restaurant-settings-fields"><label>Maximum delivery radius (km)
         <input type="number" min="0.5" max="100" step="0.01" required value={radius} disabled={busy}
           aria-describedby="delivery-area-help" onChange={e => setRadius(e.target.value)} />

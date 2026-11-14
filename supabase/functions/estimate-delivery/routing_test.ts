@@ -15,6 +15,11 @@ Deno.test({name: 'estimate-delivery: shared routing, charge, fallback, safe erro
   Deno.serve=((h:unknown)=>{handler=h as typeof handler;return {} as Deno.HttpServer;}) as typeof Deno.serve;
   globalThis.fetch=(async(input:RequestInfo|URL, init?:RequestInit)=>{
     const url=new URL(typeof input==='string'?input:input instanceof URL?input.href:input.url);
+    if(url.hostname==='localhost'){
+      if(url.pathname.endsWith('/check_delivery_request'))return response({allowed:true});
+      if(url.pathname.endsWith('/restaurant_settings'))return response({delivery_radius_km:15});
+      if(url.pathname.endsWith('/reserve_delivery_route'))return response(true);
+    }
     if(url.hostname==='api.heigit.org'&&url.pathname==='/openrouteservice/v2/directions/driving-car/json'){
       calls++;
       assert(new Headers(init?.headers).get('Authorization')==='routing-test-only');

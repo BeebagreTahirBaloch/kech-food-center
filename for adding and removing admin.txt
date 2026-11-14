@@ -2,11 +2,6 @@ how to add multiple admin
 
 
 
-
-
-
-
-
 Your website already supports multiple admins. Repeat these steps for each person:
 1. In Supabase, open Authentication → Users → Add user → Create new user. Enter their email and choose a password for their website account. Enable Auto Confirm User if shown. Supabase user management
 2. Copy the new user’s UID.
@@ -25,9 +20,6 @@ Keep public sign-ups disabled. No code changes or redeployment are needed.
 
 
 then how to delet admin
-
-
-
 
 
 

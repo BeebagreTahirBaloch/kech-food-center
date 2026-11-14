@@ -30,8 +30,9 @@ globalThis.fetch = async (input, init) => {
   if (path.endsWith('/rpc/price_menu_cart')) return json([{ productId: id, name: 'Test food', unitPrice: subtotal, quantity: 1, lineTotal: subtotal }]);
   if (path.endsWith('/restaurant_settings')) {
     settingsCalls++;
-    return settingsFailure ? json({ code: '42P01', message: 'Test unavailable' }, 400) : json({ minimum_order_amount: minimum });
+    return settingsFailure ? json({ code: '42P01', message: 'Test unavailable' }, 400) : json({ minimum_order_amount: minimum, delivery_radius_km: 15 });
   }
+  if (path.endsWith('/rpc/reserve_delivery_route')) return json(true);
   if (path.endsWith('/rpc/delivery_charge_for_distance')) return json(150);
   if (path.endsWith('/rpc/claim_push_jobs')) return json([]);
   if (path.endsWith('/orders') && init?.method === 'POST') {
