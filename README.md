@@ -2,6 +2,10 @@
 
 # Kech Food Center
 
+The admin can change the **Website logo** in **Settings and alerts → Website images**. It updates the header, loading screen, footer, app page and generated browser/app icons. Follow [logo setup and policy review](docs/WEBSITE_LOGO.md): run the new logo migration, then deploy through GitHub/Vercel. No Supabase function deployment or new secrets are needed.
+
+Sound and notification choices now persist on the same browser/device. Customer push consent carries forward to future active orders opened in tracking; rider sound also stays enabled after reloads. See [saved alert preferences and testing](docs/SAVED_ALERT_PREFERENCES.md). Deploy the frontend only; no new SQL, Edge Function deployments or secrets are required.
+
 Customers can choose **Get the app** to open `/get-app`, install when their browser supports it, or follow Android/iPhone instructions. See [customer app installation](docs/GET_THE_APP.md). This is a frontend-only update; no SQL or secrets are required.
 
 The homepage hero and welcome-popup images can be changed in **Admin → Settings and alerts → Website images**. See [website image setup](docs/WEBSITE_IMAGES.md) for the new migration, upload instructions and policy review. After this frontend update, future image changes need only an upload and Save.

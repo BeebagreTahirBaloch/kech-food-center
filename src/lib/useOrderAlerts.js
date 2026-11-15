@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createStatusObserver, orderAlert } from './orderAlerts.js';
+import { useAlertPreference, saveAlertPreference, readAlertPreference, unlockAlertAudio, playAlertSound } from './alertPreferences.js';
 
 export default function useOrderAlerts(orderId, order, systemNotifications = true) {
   const observe = useRef(createStatusObserver());
-  const audio = useRef(null);
-  const [enabled, setEnabled] = useState(false);
+  const enabled = useAlertPreference('kfc_customer_sound') === true;
   const [hint, setHint] = useState('');
   const [banner, setBanner] = useState(null);
   const [toast, setToast] = useState(null);
@@ -12,29 +12,14 @@ export default function useOrderAlerts(orderId, order, systemNotifications = tru
   const notices = useRef([]);
 
   function playSound() {
-    try {
-      const context = audio.current;
-      if (!context || context.state !== 'running') return;
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = 'sine';
-      oscillator.frequency.setValueAtTime(660, context.currentTime);
-      gain.gain.setValueAtTime(0, context.currentTime);
-      gain.gain.linearRampToValueAtTime(0.07, context.currentTime + 0.03);
-      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.35);
-      oscillator.connect(gain); gain.connect(context.destination);
-      oscillator.start(); oscillator.stop(context.currentTime + 0.4);
-      oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
-    } catch { /* Visual alerts remain available. */ }
+    playAlertSound('customer');
   }
 
   async function enableAlerts() {
     // Both APIs are invoked directly from the customer's tap.
-    let resume;
-    try {
-      const Audio = window.AudioContext || window.webkitAudioContext;
-      if (Audio) { audio.current ||= new Audio(); resume = audio.current.resume().catch(() => {}); }
-    } catch { /* Audio is optional. */ }
+    saveAlertPreference('kfc_customer_sound', true);
+    saveAlertPreference('kfc_customer_notifications', true);
+    const resume = unlockAlertAudio();
     let permission = 'unsupported';
     try {
       if ('Notification' in window) {
@@ -43,9 +28,15 @@ export default function useOrderAlerts(orderId, order, systemNotifications = tru
       }
     } catch { permission = 'unsupported'; }
     try { await resume; } catch { /* Visual alerts remain available. */ }
-    setEnabled(audio.current?.state === 'running');
     playSound();
-    setHint(permission === 'granted' ? 'Alerts enabled while this tracking page is open.' : 'System notifications are unavailable or blocked. In-page alerts stay on.');
+    setHint(permission === 'granted' ? 'Preference saved on this browser. Sound and page alerts stay on for future visits.' : 'Sound preference saved. System notifications are unavailable or blocked; in-page alerts stay on.');
+  }
+
+  function disableAlerts() {
+    saveAlertPreference('kfc_customer_sound', false);
+    saveAlertPreference('kfc_customer_notifications', false);
+    notices.current.forEach(notice => notice.close());
+    setHint('Sound and page notifications are off. Banners stay on. Manage push alerts separately below.');
   }
 
   useEffect(() => {
@@ -66,7 +57,7 @@ export default function useOrderAlerts(orderId, order, systemNotifications = tru
     playSound();
     if (document.hidden) setBackgroundTitle(alert.title);
     try {
-      if (systemNotifications && 'Notification' in window && Notification.permission === 'granted') {
+      if (systemNotifications && readAlertPreference('kfc_customer_notifications') !== false && 'Notification' in window && Notification.permission === 'granted') {
         const notification = new Notification(alert.title, { body: alert.body, tag: `${order.id}:${order.status}` });
         notification.onclick = () => { window.focus(); notification.close(); };
         notices.current.push(notification);
@@ -92,9 +83,8 @@ export default function useOrderAlerts(orderId, order, systemNotifications = tru
   }, [backgroundTitle]);
 
   useEffect(() => () => {
-    audio.current?.close().catch(() => {});
     notices.current.forEach(notice => notice.close());
   }, []);
 
-  return { enabled, hint, enableAlerts, banner, toast, dismissBanner: () => setBanner(null) };
+  return { enabled, hint, enableAlerts, disableAlerts, banner, toast, dismissBanner: () => setBanner(null) };
 }

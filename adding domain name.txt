@@ -1,0 +1,6 @@
+Allow the new domain in your backend
+   In Supabase → Edge Functions → Secrets, update ALLOWED_ORIGIN. Your code supports a comma-separated list:
+
+   https://kechfoodcenter.com,https://www.kechfoodcenter.com,https://kech-food-center.vercel.app,http://localhost:5173,http://127.0.0.1:5173
+
+   Use your actual domain, without a trailing /.

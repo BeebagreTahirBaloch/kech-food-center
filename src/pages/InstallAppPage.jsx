@@ -5,6 +5,7 @@ import Footer from '../components/Footer.jsx';
 import { useCart } from '../context/CartContext.jsx';
 import { useAppInstall } from '../context/AppInstallContext.jsx';
 import '../install-app.css';
+import { BrandLogo } from '../context/BrandingContext.jsx';
 
 export default function InstallAppPage() {
   const { count } = useCart();
@@ -17,7 +18,7 @@ export default function InstallAppPage() {
   return <><Header count={count} compactLogo />
     <main className="install-app-page">
       <section className="install-app-card" aria-labelledby="install-title">
-        <img className="install-app-logo" src="/rider-icon-192.png" alt="Kech Food Center" width="88" height="88" />
+        <BrandLogo square className="install-app-logo" width="88" height="88" />
         <span className="install-app-eyebrow">KECH FOOD CENTER · TURBAT</span>
         <h1 id="install-title">Your favourites.<br />One tap away.</h1>
         <p className="install-app-intro">Add Kech Food Center to your home screen. Browse the menu, place an order and follow your delivery in one place.</p>

@@ -1,6 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
 import { useRestaurantSettings } from '../context/RestaurantSettingsContext.jsx';
 import { useAppInstall } from '../context/AppInstallContext.jsx';
+import { BrandLogo } from '../context/BrandingContext.jsx';
 
 export default function Header({ count, compactLogo = false }) {
   const { restaurantPhone } = useRestaurantSettings();
@@ -10,7 +11,7 @@ export default function Header({ count, compactLogo = false }) {
       <nav className={`site-nav${compactLogo ? " compact-logo" : ""}`}>
         <div className="logo">
           <Link className="brand-mark" to="/" aria-label="Kech Food Center home">
-            <img src="/images/kfc_turbat_logo edited.png" alt="Kech Food Center" />
+            <BrandLogo />
           </Link>
         </div>
         <div className="nav-items">

@@ -227,10 +227,11 @@ function TrackingOrder({ id, area, onAreaChange }) {
             <summary><span className="tracking-alert-label"><TrackingIcon name="bell" /><span>Order alerts<small>Sound & notifications</small></span></span><TrackingIcon name="chevron" className="tracking-chevron" /></summary>
             <div className="tracking-disclosure-content">
               <div className="tracking-sound-settings"><h3>While this page is open</h3><p>Play a soft sound when your order changes.</p>
-                <button type="button" className="track-order-link" onClick={alerts.enableAlerts}>{alerts.enabled ? 'Sound enabled · Alert settings' : 'Enable sound and alerts'}</button>
+                {alerts.enabled && <p>Sound preference saved on this browser. If sound is paused, tap anywhere on the page to activate it.</p>}
+                <button type="button" className="track-order-link" onClick={alerts.enabled ? alerts.disableAlerts : alerts.enableAlerts}>{alerts.enabled ? 'Turn off sound and page alerts' : 'Enable sound and alerts'}</button>
                 {alerts.hint && <p className="alert-hint" role="status">{alerts.hint}</p>}
               </div>
-              <PushAlerts orderId={id} embedded onEnabledChange={setPushEnabled} />
+              <PushAlerts key={id} orderId={id} embedded onEnabledChange={setPushEnabled} />
             </div>
           </details>}
         </aside>

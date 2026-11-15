@@ -8,7 +8,8 @@ const id='11111111-1111-4111-8111-111111111111';
 const session={access_token:'eyJhbGciOiJIUzI1NiJ9.'+Buffer.from(JSON.stringify({sub:id,exp:Math.floor(Date.now()/1000)+3600,role:'authenticated'})).toString('base64url')+'.test',refresh_token:'test',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user:{id,email:'test@example.test',aud:'authenticated',role:'authenticated'}};
 const picture=await sharp({create:{width:1800,height:900,channels:3,background:'#b21f1f'}}).png().toBuffer();
 const oldPath=`website/hero/${id}.webp`;
-let rows=[{slot:'hero',image_path:oldPath},{slot:'popup',image_path:null}],uploads=0,deleted=[],failUpload=false,failSave=false,failRead=false;
+let rows=[{slot:'hero',image_path:oldPath},{slot:'popup',image_path:null},{slot:'logo',image_path:null}],uploads=0,deleted=[],failUpload=false,failSave=false,failRead=false,failIcon=false,slowMenu=false;
+const uploadedIcons=[];
 const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
 const context=await browser.newContext({serviceWorkers:'block',viewport:{width:390,height:844}});
 await context.routeWebSocket('**/*',ws=>ws.close());
@@ -21,6 +22,13 @@ await context.route('**/*',async route=>{
   if(path.includes('/storage/v1/object/public/'))return route.fulfill({contentType:'image/png',body:picture});
   if(path.includes('/storage/v1/object/')){
     if(req.method()==='DELETE'){deleted.push(...req.postDataJSON().prefixes);return reply([]);}
+    if(/website\/logo\/.*-(192|512)\.png$/.test(path)){
+      const size=Number(path.match(/-(192|512)\.png$/)[1]);
+      const buffer=req.postDataBuffer(),start=buffer.indexOf(Buffer.from([137,80,78,71,13,10,26,10]));
+      assert.ok(start>=0);const metadata=await sharp(buffer.subarray(start)).metadata();
+      assert.equal(metadata.width,size);assert.equal(metadata.height,size);uploadedIcons.push(size);
+      if(failIcon)return reply({message:'Test icon failure'},500);
+    }
     uploads++;return failUpload?reply({message:'Test failed'},403):reply({Key:path});
   }
   if(path.endsWith('/website_images')){
@@ -31,7 +39,7 @@ await context.route('**/*',async route=>{
       assert.equal(url.searchParams.get('image_path'),old.image_path?'eq.'+old.image_path:'is.null');
       Object.assign(old,req.postDataJSON());return reply(old);
     }
-    return failRead?reply({message:'Test failed'},500):reply(rows);
+    return failRead?reply({message:'Test failed'},500):reply(url.searchParams.get('slot')==='eq.logo'?rows.find(row=>row.slot==='logo'):rows);
   }
   if(path.endsWith('/admins'))return reply([{user_id:id}]);
   if(path.endsWith('/user'))return reply(session.user);
@@ -41,7 +49,7 @@ await context.route('**/*',async route=>{
   if(path.endsWith('/delivery_rates'))return reply({tiers:[{maxKm:null,charge:100}]});
   if(path.endsWith('/delivery_settings'))return reply({max_active_orders:3,nearby_order_km:1});
   if(path.endsWith('/admin_waiting_orders'))return reply({count:0,orders:[],threshold:10});
-  if(path.endsWith('/categories')||path.endsWith('/menu_items'))return reply([]);
+  if(path.endsWith('/categories')||path.endsWith('/menu_items')){if(slowMenu)await new Promise(resolve=>setTimeout(resolve,1800));return reply([]);}
   return reply(null);
 });
 const page=await context.newPage(),errors=[];
@@ -72,15 +80,43 @@ try{
   failSave=false;
   await popup.getByRole('button',{name:'Save popup image'}).click();
   await popup.getByText(/Welcome popup image saved/).waitFor();
+  const logo=panel.getByRole('article',{name:'Website logo'});
+  const beforeLogo=uploads;
+  await logo.getByLabel('Choose logo image').setInputFiles(file);
+  await logo.getByAltText('Website logo preview').waitFor();
+  assert.equal(uploads,beforeLogo,'Logo preview does not publish');
+  failIcon=true;await logo.getByRole('button',{name:'Save logo image'}).click();
+  await logo.getByText(/App icon upload failed/).waitFor();assert.equal(rows[2].image_path,null);
+  failIcon=false;await logo.getByRole('button',{name:'Save logo image'}).click();
+  await logo.getByText(/Website logo saved/).waitFor();
+  assert.match(rows[2].image_path,/^website\/logo\/[a-f0-9-]{36}\.webp$/);
+  assert.ok(uploadedIcons.includes(192)&&uploadedIcons.includes(512));
+  const savedLogo=rows[2].image_path;
+  await logo.getByLabel('Choose logo image').setInputFiles(file);await logo.getByAltText('Website logo preview').waitFor();
+  await logo.getByRole('button',{name:'Save logo image'}).click();await logo.getByText(/Website logo saved/).waitFor();
+  assert.notEqual(rows[2].image_path,savedLogo);
+  for(const suffix of ['.webp','-192.png','-512.png'])assert.ok(deleted.includes(savedLogo.replace('.webp',suffix)));
   await page.setViewportSize({width:320,height:844});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));
   await mkdir('.test-results',{recursive:true});await panel.screenshot({path:'.test-results/website-images-mobile.png'});
-  await page.goto('http://127.0.0.1:5182/');
+  slowMenu=true;await page.goto('http://127.0.0.1:5182/');
+  await page.locator('.menu-loading-logo.custom-brand-logo').waitFor();
+  assert.ok((await page.locator('.menu-loading-logo').getAttribute('src')).endsWith(rows[2].image_path));
+  assert.equal(await page.locator('.menu-loading-logo').evaluate(el=>getComputedStyle(el).objectFit),'contain');
   await page.getByRole('dialog',{name:"Today's deal"}).waitFor();
   assert.ok((await page.locator('.hero-img').getAttribute('src')).endsWith(rows[0].image_path));
   assert.ok((await page.locator('.advert-popup img').getAttribute('src')).endsWith(rows[1].image_path));
+  assert.ok((await page.locator('.brand-mark img').getAttribute('src')).endsWith(rows[2].image_path));
+  assert.ok((await page.locator('.footer-brand-logo').getAttribute('src')).endsWith(rows[2].image_path));
+  await page.waitForFunction(()=>document.querySelector('link[rel="icon"]').href.includes('website/logo/'));
   await page.getByRole('button',{name:'Close deal'}).click();await page.reload();
   await page.waitForTimeout(1300);assert.equal(await page.getByRole('dialog').count(),0);
+  slowMenu=false;await page.goto('http://127.0.0.1:5182/get-app');
+  assert.ok((await page.locator('.install-app-logo').getAttribute('src')).endsWith(rows[2].image_path.replace('.webp','-192.png')));
+  await page.screenshot({path:'.test-results/website-logo-mobile.png'});
+  await page.route('**/storage/v1/object/public/menu-images/website/logo/**',route=>route.abort());
+  await page.reload();await page.waitForFunction(()=>document.querySelector('.brand-mark img')?.getAttribute('src')==='/images/kfc_turbat_logo edited.png');
+  await page.goto('http://127.0.0.1:5182/');
   failRead=true;await page.reload();
   assert.equal(await page.locator('.hero-img').getAttribute('src'),'/images/kfc hero section image.png');
   assert.deepEqual(errors,[]);

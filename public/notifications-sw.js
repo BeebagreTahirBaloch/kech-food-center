@@ -5,7 +5,7 @@ self.addEventListener('push',event=>{
  let data={};try{data=event.data.json();}catch{}
  const path=typeof data.url==='string'&&(/^\/track\/[a-f0-9-]{36}$/i.test(data.url)||/^\/admin(?:\/|$)/.test(data.url))?data.url:'/orders';
  event.waitUntil(self.registration.showNotification(data.title||'Kech Food Center',{
-  body:data.body||'Open the app for an update.',icon:'/rider-icon-192.png',badge:'/rider-icon-192.png',tag:data.tag||'order-update',renotify:true,data:{url:path}
+  body:data.body||'Open the app for an update.',icon:'/api/brand-icon?size=192',badge:'/api/brand-icon?size=192',tag:data.tag||'order-update',renotify:true,data:{url:path}
  }));
 });
 self.addEventListener('notificationclick',event=>{

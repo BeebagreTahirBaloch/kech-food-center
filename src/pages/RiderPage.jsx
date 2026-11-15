@@ -5,6 +5,7 @@ import RiderPush from '../components/RiderPush.jsx';
 import ReviseEta from '../components/ReviseEta.jsx';
 import {activeOrders,batchProblem,dropDistance,assignmentMessages} from '../lib/riderBatch.js';
 import {actionWasSaved} from '../lib/riderSaveState.js';
+import {useAlertPreference,saveAlertPreference,unlockAlertAudio,playAlertSound} from '../lib/alertPreferences.js';
 import '../admin.css';
 import '../rider.css';
 const map=o=>`https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lng}`;
@@ -19,20 +20,20 @@ export default function RiderPage(){
  return <RiderDashboard/>;
 }
 function RiderDashboard(){
- const [data,setData]=useState(null),[tab,setTab]=useState('new'),[historyPage,setHistoryPage]=useState(0),[connected,setConnected]=useState(false),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[sound,setSound]=useState(false),[now,setNow]=useState(Date.now()),[showCancel,setShowCancel]=useState(false),[reason,setReason]=useState('no_answer'),[note,setNote]=useState(''),[eta,setEta]=useState(30);
+ const [data,setData]=useState(null),[tab,setTab]=useState('new'),[historyPage,setHistoryPage]=useState(0),[connected,setConnected]=useState(false),[message,setMessage]=useState(''),[busy,setBusy]=useState(false),[now,setNow]=useState(Date.now()),[showCancel,setShowCancel]=useState(false),[reason,setReason]=useState('no_answer'),[note,setNote]=useState(''),[eta,setEta]=useState(30);
+ const sound=useAlertPreference('kfc_rider_sound')===true;
  const [selected,setSelected]=useState([]),[selectedActive,setSelectedActive]=useState(null);
  const active=activeOrders(data),limit=data?.maxActiveOrders??1,radius=Number(data?.nearbyOrderKm??1);
  const o=active.find(x=>x.id===selectedActive)||active[0];
  useEffect(()=>{setShowCancel(false);setReason('no_answer');setNote('');setEta(30);},[o?.id]);
  useEffect(()=>{setSelected(ids=>ids.filter(id=>data?.pending?.some(x=>x.id===id)));},[data?.pending]);
- const audio=useRef(null),seen=useRef(new Set()),generation=useRef(0),uncertain=useRef(null),actionLock=useRef(false);
+ const seen=useRef(new Set()),generation=useRef(0),uncertain=useRef(null),actionLock=useRef(false);
  const [online,setOnline]=useState(navigator.onLine),[lastSync,setLastSync]=useState(null),[saveState,setSaveState]=useState('No changes waiting to be saved.'),[syncFailed,setSyncFailed]=useState(false);
- const tone=()=>{try{const a=audio.current;if(a?.state!=='running')return;const o=a.createOscillator(),g=a.createGain();o.connect(g);g.connect(a.destination);g.gain.setValueAtTime(.05,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.25);o.start();o.stop(a.currentTime+.3);}catch{}};
+ const tone=()=>playAlertSound('rider');
  const load=useCallback(async()=>{const token=++generation.current;try{const next=await rpc('rider_dashboard',{history_page:historyPage});if(token!==generation.current)return;const added=next.pending.filter(o=>!seen.current.has(o.id));next.pending.forEach(o=>seen.current.add(o.id));if(added.length && next.profile.online){tone();try{navigator.vibrate?.([120,60,120]);}catch{}}setData(next);setLastSync(Date.now());setSyncFailed(false);if(uncertain.current){setSaveState(actionWasSaved(uncertain.current,next)?'Saved — confirmed after reconnecting.':'Refreshed from the server. The last change was not confirmed; review the current order before trying again.');uncertain.current=null;}return true;}catch(e){if(token!==generation.current)return false;setSyncFailed(true);if(e.code==='42501'){setData(null);await supabase.auth.signOut({scope:"local"});}else setMessage('Could not refresh orders. Reconnect and refresh before making changes.');return false;}},[historyPage]);
  useEffect(()=>{const update=()=>{setOnline(navigator.onLine);if(navigator.onLine)load();};window.addEventListener('online',update);window.addEventListener('offline',update);return()=>{window.removeEventListener('online',update);window.removeEventListener('offline',update);};},[load]);
  useEffect(()=>{let live=true;load();const timer=setInterval(load,10000);const tick=setInterval(()=>setNow(Date.now()),1000);const channel=supabase.channel('rider-orders',{config:{private:true}}).on('broadcast',{event:'changed'},load).subscribe(s=>{if(live){setConnected(s==='SUBSCRIBED');if(s==='SUBSCRIBED')load();}});const refresh=()=>{if(!document.hidden)load();};document.addEventListener('visibilitychange',refresh);return()=>{live=false;generation.current++;clearInterval(timer);clearInterval(tick);document.removeEventListener('visibilitychange',refresh);supabase.removeChannel(channel);};},[load]);
  useEffect(()=>{let lock,active=true;const acquire=async()=>{if(active && data?.profile.online && !document.hidden && navigator.wakeLock){try{lock=await navigator.wakeLock.request('screen');if(!active)await lock.release();}catch{}}};acquire();document.addEventListener('visibilitychange',acquire);return()=>{active=false;lock?.release();document.removeEventListener('visibilitychange',acquire);};},[data?.profile.online]);
- useEffect(()=>()=>{audio.current?.close().catch(()=>{});},[]);
  async function action(name,args,success){
   if(actionLock.current)return;
   if(!navigator.onLine||syncFailed){setSaveState('Reconnect and refresh the order before making changes.');return;}
@@ -50,7 +51,7 @@ function RiderDashboard(){
  const remaining=waitEnd?Math.max(0,Math.ceil((waitEnd-now)/1000)):null;
  return <main className="admin-page rider-page"><header className="admin-heading"><div><h1>{data.profile.name}</h1><p>{!online?'Offline':connected?'Connected':'Reconnecting...'}</p></div><button onClick={signOut}>Sign out</button></header>
  <aside className="rider-save-state" aria-live="polite"><p>Last successful update: {lastSync?new Date(lastSync).toLocaleTimeString('en-PK'):'Not yet connected'}</p><p>{saveState}</p>{syncFailed&&<p>The displayed order may be out of date.</p>}<button disabled={busy||!online} onClick={load}>Refresh and check saved state</button></aside>
- <section><label className="rider-online"><input type="checkbox" checked={data.profile.online} disabled={busy||!online||syncFailed} onChange={e=>action('set_rider_online',{p_online:e.target.checked})}/> {data.profile.online?'Online':'Offline'}</label><button onClick={async()=>{try{const A=window.AudioContext||window.webkitAudioContext;if(A){audio.current ||= new A();await audio.current.resume();setSound(true);tone();}}catch{setMessage('Sound is unavailable.');}}}>{sound?'Sound enabled':'Enable sound'}</button><p>Keep Online to receive new-order push alerts. Screen stays awake when supported while this page is visible.</p></section>
+ <section><label className="rider-online"><input type="checkbox" checked={data.profile.online} disabled={busy||!online||syncFailed} onChange={e=>action('set_rider_online',{p_online:e.target.checked})}/> {data.profile.online?'Online':'Offline'}</label><button onClick={async()=>{saveAlertPreference('kfc_rider_sound',!sound);if(!sound){const ready=await unlockAlertAudio();if(ready)tone();else setMessage('Sound preference saved. Tap the page to activate sound when your browser allows it.');}}}>{sound?'Turn off sound':'Enable sound'}</button>{sound&&<p>Sound is on for this browser. Tap anywhere if your browser pauses audio.</p>}<p>Keep Online to receive new-order push alerts. Screen stays awake when supported while this page is visible.</p></section>
  <div className="rider-tabs">{[['new','New orders'],['active',`My active orders (${active.length})`],['history','History']].map(([value,label])=><button aria-pressed={tab===value} key={value} onClick={()=>setTab(value)}>{label}</button>)}</div>
  {message&&<p className="admin-toast" role="status">{message}<button onClick={()=>setMessage('')}>Close</button></p>}
  {tab==='new'&&<>

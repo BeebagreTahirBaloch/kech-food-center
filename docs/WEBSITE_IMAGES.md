@@ -9,7 +9,7 @@ Use a wide landscape image for the hero and a portrait/square image for the popu
 
 New images use unique paths under `menu-images/website/hero/` and `menu-images/website/popup/`, avoiding stale cached replacements. A stale editor cannot overwrite another admin's newer save: reload images before trying again. The previous uploaded file is removed only after the replacement row is confirmed saved. If a network response is uncertain, the new file is retained to avoid deleting a potentially published image; this can leave an unused upload in Storage. Cleanup failure is reported separately from a successful save. The original files in `public/images` are never deleted by the editor.
 
-This update does not change the loading logo, special-offer text or popup display frequency. Future image replacements need only Save, with no redeployment.
+The later [Website logo update](WEBSITE_LOGO.md) adds a third editor and updates the loading logo and other branding. Special-offer text and popup display frequency remain independent. Future image replacements need only Save, with no redeployment.
 
 ## Validation
 

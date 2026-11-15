@@ -13,6 +13,7 @@ import AdminOrdersPage from "./pages/AdminOrdersPage.jsx";
 import OrdersPage from "./pages/OrdersPage.jsx";
 import InstallAppPage from './pages/InstallAppPage.jsx';
 import { AppInstallProvider } from './context/AppInstallContext.jsx';
+import { restoreSavedSoundOnInteraction } from './lib/alertPreferences.js';
 
 function readDeliveryArea() {
   try { return localStorage.getItem("deliveryArea") || ""; } catch { return ""; }
@@ -45,6 +46,7 @@ function NotFound() {
 }
 
 export default function App() {
+  useEffect(restoreSavedSoundOnInteraction, []);
   const [area, setArea] = useState(readDeliveryArea);
 
   useEffect(() => {

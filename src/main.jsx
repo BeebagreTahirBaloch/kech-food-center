@@ -5,6 +5,7 @@ import App from "./App.jsx";
 import { CartProvider } from "./context/CartContext.jsx";
 import { MenuProvider } from "./context/MenuContext.jsx";
 import { RestaurantSettingsProvider } from "./context/RestaurantSettingsContext.jsx";
+import { BrandingProvider } from './context/BrandingContext.jsx';
 import "./style.css";
 import "./cart.css";
 import "./order-progress.css";
@@ -12,9 +13,9 @@ import "./order-progress.css";
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <RestaurantSettingsProvider><MenuProvider><CartProvider>
+      <BrandingProvider><RestaurantSettingsProvider><MenuProvider><CartProvider>
         <App />
-      </CartProvider></MenuProvider></RestaurantSettingsProvider>
+      </CartProvider></MenuProvider></RestaurantSettingsProvider></BrandingProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );

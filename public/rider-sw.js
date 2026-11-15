@@ -4,7 +4,7 @@ self.addEventListener('activate',event=>{event.waitUntil(self.clients.claim());}
 self.addEventListener('push',event=>{
  let data={};try{data=event.data.json();}catch{}
  event.waitUntil(self.registration.showNotification(data.title || 'KFC Turbat Rider',{
-  body:data.body || 'Open the app to check orders.',icon:'/rider-icon-192.png',badge:'/rider-icon-192.png',tag:data.tag || 'rider-orders',renotify:true,data:{url:'/rider?tab=new'}
+  body:data.body || 'Open the app to check orders.',icon:'/api/brand-icon?size=192',badge:'/api/brand-icon?size=192',tag:data.tag || 'rider-orders',renotify:true,data:{url:'/rider?tab=new'}
  }));
 });
 self.addEventListener('notificationclick',event=>{

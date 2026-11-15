@@ -1,13 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { adminSupabase } from '../lib/supabase.js';
 import { prepareImage } from '../lib/menuImages.js';
-import { fallbackWebsiteImage, websiteImageUrl } from '../lib/websiteImages.js';
+import { fallbackWebsiteImage, websiteImageUrl, logoIconPath } from '../lib/websiteImages.js';
+import { prepareLogo } from '../lib/logoImages.js';
+import { useBranding } from '../context/BrandingContext.jsx';
 
 function ImageEditor({ row, onSaved, onBusy }) {
   const [blob, setBlob] = useState(null), [preview, setPreview] = useState('');
+  const [icons, setIcons] = useState(null);
+  const { applyLogo } = useBranding();
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const input = useRef(null);
-  const title = row.slot === 'hero' ? 'Homepage hero image' : 'Welcome popup image';
+  const title = row.slot === 'logo' ? 'Website logo' : row.slot === 'hero' ? 'Homepage hero image' : 'Welcome popup image';
   useEffect(() => { onBusy(row.slot, busy); }, [busy, row.slot, onBusy]);
   useEffect(() => {
     if (!blob) { setPreview(''); return; }
@@ -17,8 +21,11 @@ function ImageEditor({ row, onSaved, onBusy }) {
   async function choose(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setBusy(true); setError(''); setMessage(''); setBlob(null);
-    try { setBlob(await prepareImage(file)); }
+    setBusy(true); setError(''); setMessage(''); setBlob(null); setIcons(null);
+    try {
+      if (row.slot === 'logo') { const prepared = await prepareLogo(file); setBlob(prepared.logo); setIcons(prepared.icons); }
+      else setBlob(await prepareImage(file));
+    }
     catch (e) { setError(e.message || 'Unable to open this image. Try another JPG, PNG or WebP.'); input.current.value = ''; }
     finally { setBusy(false); }
   }
@@ -30,16 +37,23 @@ function ImageEditor({ row, onSaved, onBusy }) {
       const path = `website/${row.slot}/${crypto.randomUUID()}.webp`;
       const { error: uploadError } = await bucket.upload(path, blob, { contentType: 'image/webp', upsert: false });
       if (uploadError) throw Error('Upload failed. Check your admin access and connection, then try again.');
+      if (row.slot === 'logo') for (const size of [192,512]) {
+        if (!icons?.[size]) throw Error('Choose your logo again to prepare the app icons.');
+        const { error } = await bucket.upload(logoIconPath(path, size), icons[size], { contentType: 'image/png', upsert: false });
+        if (error) throw Error('App icon upload failed. Your current logo is unchanged. Please try again.');
+      }
       let query = adminSupabase.from('website_images').update({ image_path: path }).eq('slot', row.slot);
       query = row.image_path == null ? query.is('image_path', null) : query.eq('image_path', row.image_path);
       const { data, error: saveError } = await query.select('slot,image_path').maybeSingle();
       // Do not delete an uploaded image on an uncertain response: the save may have committed.
       if (saveError || !data) throw Error('Could not confirm the save, or another admin changed this image. Reload the images before trying again.');
       onSaved(data); setBlob(null); input.current.value = '';
-      setMessage(`${title} saved. Customers will see it when they open or return to the homepage.`);
+      if (row.slot === 'logo') applyLogo(data.image_path);
+      setMessage(row.slot === 'logo' ? 'Website logo saved. It now appears across the website. Installed app icons may take time to update.' : `${title} saved. Customers will see it when they open or return to the homepage.`);
       if (row.image_path) {
         try {
-          const { error: cleanupError } = await bucket.remove([row.image_path]);
+          const oldFiles = row.slot === 'logo' ? [row.image_path, logoIconPath(row.image_path,192), logoIconPath(row.image_path,512)] : [row.image_path];
+          const { error: cleanupError } = await bucket.remove(oldFiles.filter(Boolean));
           if (cleanupError) throw cleanupError;
         } catch { setMessage(`${title} saved. The old file could not be removed from storage.`); }
       }
@@ -47,9 +61,9 @@ function ImageEditor({ row, onSaved, onBusy }) {
   }
   return <article className="website-image-editor" aria-label={title}>
     <h3>{title}</h3>
-    <p>{row.slot === 'hero' ? 'Use a wide landscape image for the banner above the menu.' : 'Shown in the welcome deal popup. A portrait or square image works well.'}</p>
+    <p>{row.slot === 'logo' ? 'Used in the header, loading screen, footer and app page. Square app icons are generated automatically. A transparent PNG works well.' : row.slot === 'hero' ? 'Use a wide landscape image for the banner above the menu.' : 'Shown in the welcome deal popup. A portrait or square image works well.'}</p>
     <div className="website-image-preview"><img src={preview || websiteImageUrl(row.slot, row.image_path)} alt={preview ? `${title} preview` : `Current ${title.toLowerCase()}`} onError={e => fallbackWebsiteImage(e, row.slot)} /></div>
-    <label>Choose {row.slot === 'hero' ? 'hero' : 'popup'} image<input ref={input} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={choose} /></label>
+    <label>Choose {row.slot} image<input ref={input} type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={choose} /></label>
     <small>JPG, PNG or WebP, up to 2 MB. Images are resized before upload.</small>
     {preview && <p className="website-image-unsaved">Preview only — click Save to publish this image.</p>}
     {error && <p className="restaurant-settings-error" role="alert">{error}</p>}
@@ -74,7 +88,8 @@ export default function AdminWebsiteImages() {
   return <section className="admin-website-images" aria-labelledby="website-images-title">
     <h2 id="website-images-title">Website images</h2><p>Upload and preview each image, then save it to update the website.</p>
     {error && <p role="alert" className="restaurant-settings-error">{error}</p>}
-    {loading ? <p role="status">Loading website images…</p> : !error && rows && <div className="website-images-grid">{['hero','popup'].map(slot =>
+    {!loading && !error && rows && !rows.some(row => row.slot === 'logo') && <p role="status">To enable the Website logo editor, run the new 202611150001_website_logo.sql migration, then reload images.</p>}
+    {loading ? <p role="status">Loading website images…</p> : !error && rows && <div className="website-images-grid">{['logo','hero','popup'].filter(slot => rows.some(row => row.slot === slot)).map(slot =>
       <ImageEditor key={slot} row={rows.find(row => row.slot === slot)} onBusy={onBusy} onSaved={saved => setRows(previous => previous.map(row => row.slot === saved.slot ? saved : row))} />)}</div>}
     {!loading && <button type="button" className="website-images-reload" disabled={Object.values(working).some(Boolean)} onClick={load}>Reload images</button>}
   </section>;

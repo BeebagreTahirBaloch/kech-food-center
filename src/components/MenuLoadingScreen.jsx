@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import './MenuLoadingScreen.css';
+import { BrandLogo } from '../context/BrandingContext.jsx';
 
 export default function MenuLoadingScreen({ loading, onRetry }) {
   useEffect(() => {
@@ -12,9 +13,8 @@ export default function MenuLoadingScreen({ loading, onRetry }) {
   return (
     <main className="menu-loading-screen" aria-label="Kech Food Center menu">
       <div className="menu-loading-content">
-        <img
+        <BrandLogo
           className={`menu-loading-logo${loading ? ' is-loading' : ''}`}
-          src="/images/kfc_turbat_logo edited.png"
           alt="KFC Turbat"
           width="184"
           height="88"
